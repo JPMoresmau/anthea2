@@ -4,7 +4,7 @@ use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 
 pub mod tiled;
 use tiled::*;
-use std::{cmp::max, collections::{HashMap, HashSet}, time::{Instant}};
+use std::{cmp::max, collections::{HashMap, HashSet}, intrinsics::transmute, time::{Instant}};
 
 const SCREEN_WIDTH: i32 = 640;
 const SCREEN_HEIGHT: i32 = 480;
@@ -34,8 +34,8 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(AntheaPlugin)
-        .add_plugin(LogDiagnosticsPlugin::default())                                                                                                                                                                                                                    
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())                                                                                                                                                                                                                                                                                                                                                                                                                                     
+        //.add_plugin(LogDiagnosticsPlugin::default())                                                                                                                                                                                                                    
+        //.add_plugin(FrameTimeDiagnosticsPlugin::default())                                                                                                                                                                                                                                                                                                                                                                                                                                     
         .run();
 }
 
@@ -123,11 +123,12 @@ impl Default for AntheaState {
 struct TileEntityState {
     entities:Vec<Entity>,
     passable: bool,
+    transparent: bool,
 }
 
 impl Default for TileEntityState {
     fn default() -> Self {
-        Self{entities:vec![], passable:true}
+        Self{entities:vec![], passable:true, transparent:true}
     }
 }
 
@@ -204,7 +205,7 @@ fn setup_map( commands: &mut Commands,
     
     let atlas_handle = texture_atlases.add(texture_atlas);
     let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();
-    for l in map.layers.iter(){
+    for (ix,l) in map.layers.iter().enumerate(){
         let mut pos = state.map_position.clone();
         let mut c=0;
         for t in &l.tiles {
@@ -213,7 +214,7 @@ fn setup_map( commands: &mut Commands,
                 let tile_handle = asset_server.get_handle(path.as_str());
                 let tile_index = texture_atlas.get_texture_index(&tile_handle).unwrap();
                 let vec3 = pos.to_vec3();
-                let vis= is_visible(&vec3);
+                let vis= is_visible(&vec3,None);
                 commands.spawn(SpriteSheetBundle {
                     sprite: TextureAtlasSprite::new(tile_index as u32),
                     texture_atlas: atlas_handle.clone(),
@@ -222,11 +223,14 @@ fn setup_map( commands: &mut Commands,
                     ..Default::default()
                 }).with(MapTile);
 
-                let rel_pos=pos.to_relative(&START_MAP_POSITION).inverse();
+                let rel_pos=START_MAP_POSITION.to_relative(&pos);
                 let e = state.positions.entry(rel_pos).or_default();
                 e.entities.push(commands.current_entity().unwrap());
-                e.passable=e.passable&& is_tile_passable(path);
-                
+                let pass =  is_tile_passable(path);
+                e.passable=e.passable&&pass;
+                if ix==0 && !pass {
+                    e.transparent=false;
+                }
             }
             c+=1;
             if c==l.width{
@@ -337,21 +341,56 @@ fn player_movement_system(
             state.last_move=0;
             let dif_x = (new_pos.x-state.map_position.x) as f32;
             let dif_y = (new_pos.y-state.map_position.y) as f32;
+            state.map_position=new_pos;
             
             for (_tile, mut transform, mut vis) in &mut map_query.iter_mut() {
                 transform.translation.x+=dif_x;
                 transform.translation.y+=dif_y;
-                if is_visible(&transform.translation){
+                if !vis.is_visible && is_visible(&transform.translation,Some(&state)){
                     vis.is_visible=true;
                 }
             }
-            state.map_position=new_pos;
+            
         }
     }
 }
 
-fn is_visible(pos: &Vec3) -> bool {
-    pos.x.abs()<VISIBILITY_DISTANCE && pos.y.abs()<VISIBILITY_DISTANCE as f32
+fn is_visible(pos: &Vec3, ostate: Option<&AntheaState>) -> bool {
+    if pos.x.abs()<VISIBILITY_DISTANCE && pos.y.abs()<VISIBILITY_DISTANCE as f32{
+        if let Some(state) = ostate {
+            let mut d_x = pos.x;
+            let mut d_y = pos.y;
+            while d_x!=0.0 || d_y!=0.0 {
+                let mut n_x=d_x;
+                if d_x!=0.0 && d_x.abs()>=d_y.abs() {
+                    n_x=if d_x<0.0 {
+                        d_x+SPRITE_SIZE as f32
+                    } else {
+                        d_x-SPRITE_SIZE as f32
+                    };
+                } 
+                if d_y!=0.0 && d_x.abs()<=d_y.abs(){
+                    d_y=if d_y<0.0 {
+                        d_y+SPRITE_SIZE as f32
+                    } else {
+                        d_y-SPRITE_SIZE as f32
+                    };
+                }
+                d_x=n_x;
+            
+                let pos =state.map_position.add(&Position::from_vec3(&Vec3::new(d_x,d_y,0.0)).inverse());
+                if let Some(t) = state.positions.get(&pos){
+                    if !t.transparent{
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } else {
+            return true;
+        }
+    }
+    false
 }
 
 
