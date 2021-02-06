@@ -1,18 +1,23 @@
-use bevy::{app::startup_stage, asset::LoadState, prelude::*, sprite::TextureAtlasBuilder};
+use bevy::{app::startup_stage, asset::{LoadState, SourceInfo}, diagnostic::EntityCountDiagnosticsPlugin, prelude::*, render::pass, sprite::TextureAtlasBuilder};
+
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 
 pub mod tiled;
 use tiled::*;
-use std::collections::HashSet;
+use std::{cmp::max, collections::{HashMap, HashSet}, time::{Instant}};
 
 const SCREEN_WIDTH: i32 = 640;
 const SCREEN_HEIGHT: i32 = 480;
 
 const SPRITE_SIZE: i32 = 32;
 
-const MIN_X: i32 = (-SCREEN_WIDTH/2)+SPRITE_SIZE;
-const MAX_X: i32 = (SCREEN_WIDTH/2)-SPRITE_SIZE;
-const MIN_Y: i32 = (-SCREEN_HEIGHT/2)+SPRITE_SIZE;
-const MAX_Y: i32 = (SCREEN_HEIGHT/2)-SPRITE_SIZE;
+
+const START_MAP_POSITION: Position = Position{x:-4*SPRITE_SIZE,y:4*SPRITE_SIZE};
+
+const VISIBILITY_DISTANCE: f32 = 4.0 * SPRITE_SIZE as f32;
+
+const MOVE_DELAY: u128 = 200;
+
 
 fn main() {
     App::build()
@@ -29,9 +34,8 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(AntheaPlugin)
-        //.add_plugin(PrintDiagnosticsPlugin::default())                                                                                                                                                                                                                    
-        //.add_plugin(FrameTimeDiagnosticsPlugin::default())                                                                                                                                                                                                                                                                                                                                                                                                                                     
-        //.add_system(PrintDiagnosticsPlugin::print_diagnostics_system.system())    
+        .add_plugin(LogDiagnosticsPlugin::default())                                                                                                                                                                                                                    
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())                                                                                                                                                                                                                                                                                                                                                                                                                                     
         .run();
 }
 
@@ -60,6 +64,7 @@ impl Plugin for AntheaPlugin {
             .on_state_enter(STAGE, AppState::Finished, setup_map.system())
             .on_state_enter(STAGE, AppState::Finished, setup_people.system())
             .add_system(player_movement_system.system())
+            //.add_system(visibility_system.system())
             ;
     }
 }
@@ -97,18 +102,32 @@ fn check_textures(
 }
 
 struct AntheaState {
-    player_position: Position,
+    //player_position: Position,
     map_position: Position,
-    unpassable_positions: HashSet<Position>,
+    positions: HashMap<Position,TileEntityState>,
+    last_move: u128,
 }
 
 impl Default for AntheaState {
     fn default() -> Self {
         Self {
-           player_position: Position::default(),
-           map_position: Position{x:-4*SPRITE_SIZE,y:4*SPRITE_SIZE},
-           unpassable_positions: HashSet::new(),
+           //player_position: Position::default(),
+           map_position: START_MAP_POSITION,
+           positions: HashMap::new(),
+           last_move: 0,
         }
+    }
+}
+
+
+struct TileEntityState {
+    entities:Vec<Entity>,
+    passable: bool,
+}
+
+impl Default for TileEntityState {
+    fn default() -> Self {
+        Self{entities:vec![], passable:true}
     }
 }
 
@@ -127,6 +146,10 @@ impl Position {
         Vec3::new(self.x as f32,self.y as f32, 0.0)
     }
 
+    pub fn from_vec3(v: &Vec3)-> Position {
+        Position{x:v.x as i32, y:v.y as i32}
+    }
+
     pub fn copy(&mut self, pos: &Position)  {
        self.x=pos.x;
        self.y=pos.y;
@@ -134,6 +157,18 @@ impl Position {
 
     pub fn to_relative(&self, pos: &Position) ->Position {
         Position{x:self.x-pos.x,y:self.y-pos.y}
+    }
+
+    pub fn add(&self, pos: &Position) ->Position {
+        Position{x:self.x+pos.x,y:self.y+pos.y}
+    }
+
+    pub fn inverse(&self) ->Position {
+        Position{x:-self.x,y:-self.y}
+    }
+
+    pub fn distance(&self, pos: &Position) -> i32 {
+        (self.x-pos.x).abs().max((self.y-pos.y).abs())
     }
 }
 
@@ -169,26 +204,29 @@ fn setup_map( commands: &mut Commands,
     
     let atlas_handle = texture_atlases.add(texture_atlas);
     let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();
-
     for l in map.layers.iter(){
         let mut pos = state.map_position.clone();
-        let start = state.map_position.clone();
         let mut c=0;
         for t in &l.tiles {
             if *t>0{
                 let path = &ts.tiles[t-1];
                 let tile_handle = asset_server.get_handle(path.as_str());
                 let tile_index = texture_atlas.get_texture_index(&tile_handle).unwrap();
+                let vec3 = pos.to_vec3();
+                let vis= is_visible(&vec3);
                 commands.spawn(SpriteSheetBundle {
                     sprite: TextureAtlasSprite::new(tile_index as u32),
                     texture_atlas: atlas_handle.clone(),
-                    transform: Transform::from_translation(pos.to_vec3()),
+                    transform: Transform::from_translation(vec3),
+                    visible: Visible{is_transparent:true,is_visible:vis},
                     ..Default::default()
                 }).with(MapTile);
-                if !is_tile_passable(path) {
-                    state.unpassable_positions.insert(pos.to_relative(&start));
-                    //println!("Unpassable:{:?}",pos.to_relative(&start));
-                }
+
+                let rel_pos=pos.to_relative(&START_MAP_POSITION).inverse();
+                let e = state.positions.entry(rel_pos).or_default();
+                e.entities.push(commands.current_entity().unwrap());
+                e.passable=e.passable&& is_tile_passable(path);
+                
             }
             c+=1;
             if c==l.width{
@@ -205,7 +243,6 @@ fn setup_map( commands: &mut Commands,
 fn setup_people( commands: &mut Commands,
     sprite_handles: Res<SpriteHandles>,
     asset_server: Res<AssetServer>,
-    state: Res<AntheaState>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
 ){
@@ -231,7 +268,7 @@ fn setup_people( commands: &mut Commands,
 
     let atlas_handle = texture_atlases.add(texture_atlas);
 
-    let pos = &state.player_position;
+    let pos = Position::default().to_vec3();
 
     commands
         .spawn(OrthographicCameraBundle::new_2d())
@@ -239,28 +276,28 @@ fn setup_people( commands: &mut Commands,
         .spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(body_index as u32),
             texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_translation(pos.to_vec3()),
+            transform: Transform::from_translation(pos),
             ..Default::default()
         })
         .with(PlayerPart{part:Part::BODY})
         .spawn(SpriteSheetBundle {
                 sprite: TextureAtlasSprite::new(pants_index as u32),
                 texture_atlas: atlas_handle.clone(),
-                transform: Transform::from_translation(pos.to_vec3()),
+                transform: Transform::from_translation(pos),
                 ..Default::default()}
         )
         .with(PlayerPart{part:Part::PANTS})
         .spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(top_index as u32),
             texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_translation(pos.to_vec3()),
+            transform: Transform::from_translation(pos),
             ..Default::default()}
         )
         .with(PlayerPart{part:Part::TOP})
         .spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(hair_index as u32),
             texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_translation(pos.to_vec3()),
+            transform: Transform::from_translation(pos),
             ..Default::default()}
         )
         .with(PlayerPart{part:Part::HAIR})
@@ -270,66 +307,53 @@ fn setup_people( commands: &mut Commands,
 
 fn player_movement_system(
     keyboard_input: Res<Input<KeyCode>>,
+    time: Res<Time>,
     mut state: ResMut<AntheaState>,
-    mut query: Query<(&PlayerPart, &mut Transform)>,
-    mut map_query: Query<(&MapTile, &mut Transform)>,
+    mut map_query: Query<(&MapTile, &mut Transform, &mut Visible)>,
 ){
+    state.last_move+=time.delta().as_millis();
+    if state.last_move<MOVE_DELAY{
+        return;
+    }
     //let (mut pos,mut map) = (&mut (state.player_position),&mut state.map_position);
-    for i in keyboard_input.get_just_pressed(){
-        let mut new_pos = state.player_position.clone();
-        let mut map_moved_x=0;
-        let mut map_moved_y=0;
+    for i in keyboard_input.get_pressed(){
+        let mut new_pos = state.map_position.clone();
         match i {
-            KeyCode::Right => new_pos.x+=SPRITE_SIZE,
-            KeyCode::Left => new_pos.x-=SPRITE_SIZE,
-            KeyCode::Up => new_pos.y+=SPRITE_SIZE,
-            KeyCode::Down => new_pos.y-=SPRITE_SIZE,
+            KeyCode::Right => new_pos.x-=SPRITE_SIZE,
+            KeyCode::Left => new_pos.x+=SPRITE_SIZE,
+            KeyCode::Up => new_pos.y-=SPRITE_SIZE,
+            KeyCode::Down => new_pos.y+=SPRITE_SIZE,
             _ => (),
         }
-        if new_pos!=state.player_position {
-            //println!("new_pos:{:?}",new_pos);
-            //println!("map_position:{:?}",state.map_position);
-            let translated_pos=new_pos.to_relative(&state.map_position);
-            //println!("translated_pos:{:?}",translated_pos);
-            if state.unpassable_positions.contains(&translated_pos){
-                new_pos.copy(&state.player_position);
+        if new_pos!=state.map_position {
+            if let Some(tes) = state.positions.get(&new_pos){
+                if !tes.passable {
+                    new_pos.copy(&state.map_position);
+                }
             }
         }
-        if new_pos!=state.player_position {
-            if new_pos.x>MAX_X {
-                new_pos.copy(&state.player_position);
-                map_moved_x=-SPRITE_SIZE;
-            } else if new_pos.x<MIN_X {
-                new_pos.copy(&state.player_position);
-                map_moved_x=SPRITE_SIZE;
-            } else if new_pos.y>MAX_Y {
-                new_pos.copy(&state.player_position);
-                map_moved_y=-SPRITE_SIZE;
-            } else if new_pos.y<MIN_Y {
-                new_pos.copy(&state.player_position);
-                map_moved_y=SPRITE_SIZE;
-            } 
-        }
-        if new_pos!=state.player_position {
-            state.player_position=new_pos;
-            for (_part, mut transform) in &mut query.iter_mut() {
-                transform.translation.x=state.player_position.x as f32;
-                transform.translation.y=state.player_position.y as f32;
+
+        if new_pos!=state.map_position {
+            state.last_move=0;
+            let dif_x = (new_pos.x-state.map_position.x) as f32;
+            let dif_y = (new_pos.y-state.map_position.y) as f32;
+            
+            for (_tile, mut transform, mut vis) in &mut map_query.iter_mut() {
+                transform.translation.x+=dif_x;
+                transform.translation.y+=dif_y;
+                if is_visible(&transform.translation){
+                    vis.is_visible=true;
+                }
             }
-        } else if map_moved_x != 0 {
-            state.map_position.x+=map_moved_x;
-            for (_tile, mut transform) in &mut map_query.iter_mut() {
-                transform.translation.x+=map_moved_x as f32;
-              
-            }
-        } else if map_moved_y != 0 {
-            state.map_position.y+=map_moved_y;
-            for (_tile, mut transform) in &mut map_query.iter_mut() {
-                transform.translation.y+=map_moved_y as f32;
-              
-            }
+            state.map_position=new_pos;
         }
     }
-
-
 }
+
+fn is_visible(pos: &Vec3) -> bool {
+    pos.x.abs()<VISIBILITY_DISTANCE && pos.y.abs()<VISIBILITY_DISTANCE as f32
+}
+
+
+
+
