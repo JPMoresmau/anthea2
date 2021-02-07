@@ -1,27 +1,21 @@
-use bevy::{app::startup_stage, asset::{LoadState, SourceInfo}, diagnostic::EntityCountDiagnosticsPlugin, prelude::*, render::pass, sprite::TextureAtlasBuilder};
+use bevy::{app::startup_stage, asset::{LoadState, SourceInfo}, diagnostic::EntityCountDiagnosticsPlugin, prelude::*, 
+    render::pass, sprite::TextureAtlasBuilder,};
 
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 
-pub mod tiled;
-use tiled::*;
 use std::{cmp::max, collections::{HashMap, HashSet}, intrinsics::transmute, time::{Instant}};
 
-const SCREEN_WIDTH: i32 = 640;
-const SCREEN_HEIGHT: i32 = 480;
-
-const SPRITE_SIZE: i32 = 32;
-
-
-const START_MAP_POSITION: Position = Position{x:-4*SPRITE_SIZE,y:4*SPRITE_SIZE};
-
-const VISIBILITY_DISTANCE: f32 = 4.0 * SPRITE_SIZE as f32;
-
-const MOVE_DELAY: u128 = 200;
+pub mod base;
+use base::*;
+pub mod tiled;
+use tiled::*;
+pub mod ui;
+use ui::*;
 
 
 fn main() {
     App::build()
-        .init_resource::<SpriteHandles>()
+        .init_resource::<AntheaHandles>()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .insert_resource(WindowDescriptor {
             title: "Anthea's Quest".to_string(),
@@ -53,6 +47,8 @@ impl Plugin for AntheaPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app
             .insert_resource(AntheaState::default())
+            .insert_resource(MouseLocation::default())
+            .insert_resource(MessageQueue::default())
             .insert_resource(State::new(AppState::Setup))
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
@@ -61,33 +57,33 @@ impl Plugin for AntheaPlugin {
             .add_stage_after(stage::UPDATE, STAGE, StateStage::<AppState>::default())
             .on_state_enter(STAGE, AppState::Setup, load_textures.system())
             .on_state_update(STAGE, AppState::Setup, check_textures.system())
+            .on_state_enter(STAGE, AppState::Finished, setup_camera.system())
             .on_state_enter(STAGE, AppState::Finished, setup_map.system())
             .on_state_enter(STAGE, AppState::Finished, setup_people.system())
+            .on_state_enter(STAGE, AppState::Finished, setup_ui.system())
             .add_system(player_movement_system.system())
+            .add_system(cursor_system.system())
+            .add_system(click_system.system())
+            .add_system(message_system.system())
             //.add_system(visibility_system.system())
             ;
     }
 }
 
-#[derive(Default)]
-struct SpriteHandles {
-    people_handles: Vec<HandleUntyped>,
-    tiles_handles: Vec<HandleUntyped>,
-    tileset_handle: Handle<TileSet>,
-    map_handles: Vec<Handle<Map>>,
-}
-
-fn load_textures(mut rpg_sprite_handles: ResMut<SpriteHandles>, asset_server: Res<AssetServer>) {
+fn load_textures(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Res<AssetServer>) {
     rpg_sprite_handles.people_handles = asset_server.load_folder("sprites/people").unwrap();
     rpg_sprite_handles.tiles_handles = asset_server.load_folder("sprites/tiles").unwrap();
     rpg_sprite_handles.tileset_handle = asset_server.load("anthea_tileset.tsx");
     rpg_sprite_handles.map_handles=vec![asset_server.load("castle1.tmx")];
+    rpg_sprite_handles.ui_handle = asset_server.load("RPG_GUI_v1.png");
+    rpg_sprite_handles.paper_handle = asset_server.load("paper background.png");
+    rpg_sprite_handles.font_handle = asset_server.load("Breath Fire.otf");
 }
 
 
 fn check_textures(
     mut state: ResMut<State<AppState>>,
-    rpg_sprite_handles: ResMut<SpriteHandles>,
+    rpg_sprite_handles: ResMut<AntheaHandles>,
     asset_server: Res<AssetServer>,
 ) {
     let ls = asset_server.get_group_load_state(rpg_sprite_handles.people_handles.iter()
@@ -95,96 +91,29 @@ fn check_textures(
         .map(|handle| handle.id)
         .chain(rpg_sprite_handles.map_handles.iter().map(|h| h.id))
         .chain(std::iter::once(rpg_sprite_handles.tileset_handle.id))
+        .chain(std::iter::once(rpg_sprite_handles.ui_handle.id))
+        .chain(std::iter::once(rpg_sprite_handles.paper_handle.id))
+        .chain(std::iter::once(rpg_sprite_handles.font_handle.id))
     );
     if let LoadState::Loaded = ls {
         state.set_next(AppState::Finished).unwrap();
     }
 }
 
-struct AntheaState {
-    //player_position: Position,
-    map_position: Position,
-    positions: HashMap<Position,TileEntityState>,
-    last_move: u128,
-}
 
-impl Default for AntheaState {
-    fn default() -> Self {
-        Self {
-           //player_position: Position::default(),
-           map_position: START_MAP_POSITION,
-           positions: HashMap::new(),
-           last_move: 0,
-        }
-    }
+struct MainCamera;
+
+fn setup_camera(commands: &mut Commands) {
+    commands.spawn(OrthographicCameraBundle::new_2d())
+        .with(MainCamera)
+        .spawn(UiCameraBundle::default());
+
 }
 
 
-struct TileEntityState {
-    entities:Vec<Entity>,
-    passable: bool,
-    transparent: bool,
-}
-
-impl Default for TileEntityState {
-    fn default() -> Self {
-        Self{entities:vec![], passable:true, transparent:true}
-    }
-}
-
-struct PlayerPart {
-    part: Part,
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct Position {
-    x: i32,
-    y: i32,
-}
-
-impl Position {
-    pub fn to_vec3(&self) -> Vec3 {
-        Vec3::new(self.x as f32,self.y as f32, 0.0)
-    }
-
-    pub fn from_vec3(v: &Vec3)-> Position {
-        Position{x:v.x as i32, y:v.y as i32}
-    }
-
-    pub fn copy(&mut self, pos: &Position)  {
-       self.x=pos.x;
-       self.y=pos.y;
-    }
-
-    pub fn to_relative(&self, pos: &Position) ->Position {
-        Position{x:self.x-pos.x,y:self.y-pos.y}
-    }
-
-    pub fn add(&self, pos: &Position) ->Position {
-        Position{x:self.x+pos.x,y:self.y+pos.y}
-    }
-
-    pub fn inverse(&self) ->Position {
-        Position{x:-self.x,y:-self.y}
-    }
-
-    pub fn distance(&self, pos: &Position) -> i32 {
-        (self.x-pos.x).abs().max((self.y-pos.y).abs())
-    }
-}
-
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
-struct MapTile;
-
-enum Part {
-    BODY,
-    PANTS,
-    TOP,
-    HAIR,
-}
 
 fn setup_map( commands: &mut Commands,
-    sprite_handles: Res<SpriteHandles>,
+    sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
     mut state: ResMut<AntheaState>,
     map_assets: Res<Assets<Map>>,
@@ -245,7 +174,7 @@ fn setup_map( commands: &mut Commands,
 }
 
 fn setup_people( commands: &mut Commands,
-    sprite_handles: Res<SpriteHandles>,
+    sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
@@ -275,8 +204,6 @@ fn setup_people( commands: &mut Commands,
     let pos = Position::default().to_vec3();
 
     commands
-        .spawn(OrthographicCameraBundle::new_2d())
-        .spawn(UiCameraBundle::default())
         .spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(body_index as u32),
             texture_atlas: atlas_handle.clone(),
@@ -393,6 +320,47 @@ fn is_visible(pos: &Vec3, ostate: Option<&AntheaState>) -> bool {
     false
 }
 
+fn cursor_system(
+    // events to get cursor position
+    mut cursor_moved_events: EventReader<CursorMoved>,
+    // need to get window dimensions
+    wnds: Res<Windows>,
+    // query to get camera transform
+    q_camera: Query<&Transform, With<MainCamera>>,
+    mut location: ResMut<MouseLocation>,
+) {
+   
+    // assuming there is exactly one main camera entity, so this is OK
+    if let Some(camera_transform) = q_camera.iter().next(){
 
+        for ev in cursor_moved_events.iter() {
+            // get the size of the window that the event is for
+            let wnd = wnds.get(ev.id).unwrap();
+            let size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
+
+            // the default orthographic projection is in pixels from the center;
+            // just undo the translation
+            let p = ev.position - size / 2.0;
+
+            // apply the camera transform
+            let pos_wld = camera_transform.compute_matrix() * p.extend(0.0).extend(1.0);
+            //println!("World coords: {}/{}", pos_wld.x, pos_wld.y);
+            location.x=pos_wld.x;
+            location.y=pos_wld.y;
+        }
+
+    }
+    
+}
+
+fn click_system(mouse_button_input: Res<Input<MouseButton>>,
+    location: Res<MouseLocation>,
+    mut queue: ResMut<MessageQueue>,
+    ) {
+    if mouse_button_input.just_pressed(MouseButton::Left) {
+        println!("left mouse currently pressed as: {} {}",location.x,location.y);
+        queue.messages.push(Message{contents:format!("{} {}",location.x,location.y), location:location.clone()});
+    }
+}
 
 
