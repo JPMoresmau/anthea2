@@ -65,6 +65,7 @@ impl Plugin for AntheaPlugin {
             .add_system(cursor_system.system())
             .add_system(click_system.system())
             .add_system(message_system.system())
+            .add_system(message_decoration_system.system())
             //.add_system(visibility_system.system())
             ;
     }
@@ -77,7 +78,7 @@ fn load_textures(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Re
     rpg_sprite_handles.map_handles=vec![asset_server.load("castle1.tmx")];
     rpg_sprite_handles.ui_handle = asset_server.load("RPG_GUI_v1.png");
     rpg_sprite_handles.paper_handle = asset_server.load("paper background.png");
-    rpg_sprite_handles.font_handle = asset_server.load("Breath Fire.otf");
+    rpg_sprite_handles.font_handle = asset_server.load("Breathe Fire.otf");
 }
 
 
@@ -359,7 +360,7 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
         println!("left mouse currently pressed as: {} {}",location.x,location.y);
-        queue.messages.push(Message{contents:format!("{} {}",location.x,location.y), location:location.clone()});
+        queue.messages.push(Message{contents:format!("Position: {} {}",location.x,location.y), location:location.clone()});
     }
 }
 
