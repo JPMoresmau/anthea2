@@ -48,7 +48,6 @@ impl Plugin for AntheaPlugin {
         app
             .insert_resource(AntheaState::default())
             .insert_resource(MouseLocation::default())
-            .insert_resource(MessageQueue::default())
             .insert_resource(State::new(AppState::Setup))
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
@@ -64,8 +63,7 @@ impl Plugin for AntheaPlugin {
             .add_system(player_movement_system.system())
             .add_system(cursor_system.system())
             .add_system(click_system.system())
-            .add_system(message_system.system())
-            .add_system(message_decoration_system.system())
+            .add_plugin(UIPlugin)
             //.add_system(visibility_system.system())
             ;
     }
@@ -78,7 +76,7 @@ fn load_textures(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Re
     rpg_sprite_handles.map_handles=vec![asset_server.load("castle1.tmx")];
     rpg_sprite_handles.ui_handle = asset_server.load("RPG_GUI_v1.png");
     rpg_sprite_handles.paper_handle = asset_server.load("paper background.png");
-    rpg_sprite_handles.font_handle = asset_server.load("Breathe Fire.otf");
+    rpg_sprite_handles.font_handle = asset_server.load("GRECOromanLubedWrestling.ttf");
 }
 
 
@@ -242,9 +240,13 @@ fn player_movement_system(
     time: Res<Time>,
     mut state: ResMut<AntheaState>,
     mut map_query: Query<(&MapTile, &mut Transform, &mut Visible)>,
+    mut msg: ResMut<MessageQueue>,
 ){
     state.last_move+=time.delta().as_millis();
     if state.last_move<MOVE_DELAY{
+        return;
+    }
+    if state.game_state!=GameState::Running {
         return;
     }
     //let (mut pos,mut map) = (&mut (state.player_position),&mut state.map_position);
@@ -263,6 +265,7 @@ fn player_movement_system(
                     new_pos.copy(&state.map_position);
                 }
             }
+            msg.clear=true;
         }
 
         if new_pos!=state.map_position {
@@ -357,11 +360,21 @@ fn cursor_system(
 fn click_system(mouse_button_input: Res<Input<MouseButton>>,
     location: Res<MouseLocation>,
     mut queue: ResMut<MessageQueue>,
+    mut state: ResMut<AntheaState>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        println!("left mouse currently pressed as: {} {}",location.x,location.y);
-        queue.messages.push(Message{contents:format!("Position: {} {}",location.x,location.y), location:location.clone()});
-    }
+
+        match state.game_state {
+            GameState::Start => {queue.clear=true; state.game_state=GameState::Running;},
+            GameState::Running => {
+                println!("left mouse currently pressed as: {} {}",location.x,location.y);
+                queue.messages.push(Message{contents:format!("Position is: {} {}",location.x,location.y), style: MessageStyle::Info});
+        
+            },
+            _=>{},
+        }
+
+     }
 }
 
 

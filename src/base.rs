@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use std::{ collections::{HashMap, HashSet}};
 
+use strum_macros::EnumIter; 
+
 use crate::tiled::*;
 
 pub const SCREEN_WIDTH: i32 = 640;
@@ -34,6 +36,7 @@ pub struct AntheaState {
     pub map_position: Position,
     pub positions: HashMap<Position,TileEntityState>,
     pub last_move: u128,
+    pub game_state: GameState,
 }
 
 impl Default for AntheaState {
@@ -43,10 +46,19 @@ impl Default for AntheaState {
            map_position: START_MAP_POSITION,
            positions: HashMap::new(),
            last_move: 0,
+           game_state: GameState::Start,
         }
     }
 }
 
+
+#[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord, EnumIter)]
+pub enum GameState {
+    Start,
+    Running,
+    Pause,
+    End,
+}
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
 pub struct MouseLocation {
