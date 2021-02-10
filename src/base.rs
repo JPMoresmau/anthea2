@@ -31,10 +31,12 @@ pub struct AntheaHandles {
 }
 
 
+#[derive(Debug,Clone)]
 pub struct AntheaState {
     //player_position: Position,
     pub map_position: Position,
     pub positions: HashMap<Position,TileEntityState>,
+    pub revealed: HashSet<Position>,
     pub last_move: u128,
     pub game_state: GameState,
 }
@@ -45,6 +47,7 @@ impl Default for AntheaState {
            //player_position: Position::default(),
            map_position: START_MAP_POSITION,
            positions: HashMap::new(),
+           revealed: HashSet::new(),
            last_move: 0,
            game_state: GameState::Start,
         }
@@ -66,6 +69,7 @@ pub struct MouseLocation {
     pub y: f32,
 }
 
+#[derive(Debug,Clone)]
 pub struct TileEntityState {
     pub entities:Vec<Entity>,
     pub passable: bool,
@@ -89,6 +93,10 @@ pub struct Position {
 }
 
 impl Position {
+    pub fn new(x:i32, y:i32) -> Self {
+        Self{x,y}   
+    }
+
     pub fn to_vec3(&self) -> Vec3 {
         Vec3::new(self.x as f32,self.y as f32, 0.0)
     }

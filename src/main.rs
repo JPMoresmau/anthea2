@@ -11,7 +11,8 @@ pub mod tiled;
 use tiled::*;
 pub mod ui;
 use ui::*;
-
+pub mod world;
+use world::*;
 
 fn main() {
     App::build()
@@ -49,6 +50,7 @@ impl Plugin for AntheaPlugin {
             .insert_resource(AntheaState::default())
             .insert_resource(MouseLocation::default())
             .insert_resource(State::new(AppState::Setup))
+            .insert_resource(stage1())
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
             .add_asset::<TileSet>()
@@ -114,13 +116,14 @@ fn setup_camera(commands: &mut Commands) {
 fn setup_map( commands: &mut Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
+    stage: Res<Stage>,
     mut state: ResMut<AntheaState>,
     map_assets: Res<Assets<Map>>,
     tileset_assets: Res<Assets<TileSet>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
 ){
-    let map = map_assets.get(&sprite_handles.map_handles[0]).unwrap();
+    let map = map_assets.get(&sprite_handles.map_handles[stage.map_index]).unwrap();
     let ts = tileset_assets.get(&sprite_handles.tileset_handle).unwrap();
 
     let mut texture_atlas_builder = TextureAtlasBuilder::default();
@@ -152,12 +155,15 @@ fn setup_map( commands: &mut Commands,
                 }).with(MapTile);
 
                 let rel_pos=START_MAP_POSITION.to_relative(&pos);
-                let e = state.positions.entry(rel_pos).or_default();
+                let e = state.positions.entry(rel_pos.clone()).or_default();
                 e.entities.push(commands.current_entity().unwrap());
                 let pass =  is_tile_passable(path);
                 e.passable=e.passable&&pass;
                 if ix==0 && !pass {
                     e.transparent=false;
+                }
+                if vis {
+                    state.revealed.insert(rel_pos);
                 }
             }
             c+=1;
@@ -170,6 +176,7 @@ fn setup_map( commands: &mut Commands,
             }
         }
     }
+    //println!("Revealed: {:?}",state.revealed);
 }
 
 fn setup_people( commands: &mut Commands,
@@ -279,6 +286,10 @@ fn player_movement_system(
                 transform.translation.y+=dif_y;
                 if !vis.is_visible && is_visible(&transform.translation,Some(&state)){
                     vis.is_visible=true;
+                    let pos = state.map_position.to_relative(&Position::new(transform.translation.x as i32, transform.translation.y as i32));
+                    //println!("Revealing: {:?}",pos);
+                    state.revealed.insert(pos);
+                    
                 }
             }
             
@@ -361,14 +372,36 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
     location: Res<MouseLocation>,
     mut queue: ResMut<MessageQueue>,
     mut state: ResMut<AntheaState>,
+    stage: Res<Stage>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
 
         match state.game_state {
             GameState::Start => {queue.clear=true; state.game_state=GameState::Running;},
             GameState::Running => {
-                println!("left mouse currently pressed as: {} {}",location.x,location.y);
-                queue.messages.push(Message{contents:format!("Position is: {} {}",location.x,location.y), style: MessageStyle::Info});
+                //println!("left mouse currently pressed as: {} {}",location.x,location.y);
+
+                let rel_x = location.x-(state.map_position.x as f32);
+                let rel_y = -(location.y-(state.map_position.y as f32)) ;
+                //println!("relative: {:?},{:?}",rel_x,rel_y);
+
+                let rel_pos=Position::new(-rel_x as i32,rel_y as i32);
+                let mut revealed = false;
+                for rp in state.revealed.iter() {
+                    if rp.distance(&rel_pos)<=SPRITE_SIZE/2{
+                        revealed=true;
+                        break;
+                    }
+                }
+                if revealed {
+                    if let Some(r) = stage.room_from_coords(rel_x,rel_y){
+                        queue.messages.push(Message{contents:r.description.clone(), style: MessageStyle::Info});
+                    } else {
+                        queue.clear=true;
+                    }
+                } else {
+                    queue.clear=true;
+                }
         
             },
             _=>{},
