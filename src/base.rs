@@ -11,8 +11,6 @@ pub const SCREEN_HEIGHT: i32 = 480;
 pub const SPRITE_SIZE: i32 = 32;
 
 
-pub const START_MAP_POSITION: Position = Position{x:-4*SPRITE_SIZE,y:4*SPRITE_SIZE};
-
 pub const VISIBILITY_DISTANCE: f32 = 4.0 * SPRITE_SIZE as f32;
 
 pub const MOVE_DELAY: u128 = 200;
@@ -45,7 +43,7 @@ impl Default for AntheaState {
     fn default() -> Self {
         Self {
            //player_position: Position::default(),
-           map_position: START_MAP_POSITION,
+           map_position: Position::default(),
            positions: HashMap::new(),
            revealed: HashSet::new(),
            last_move: 0,
@@ -127,6 +125,23 @@ impl Position {
     }
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Dimension {
+    topleft: Position,
+    bottomright: Position,
+}
+
+impl Dimension {
+    pub fn new(topleft: Position, bottomright:Position) -> Self{
+        Self{topleft,bottomright}
+    }
+
+    pub fn contains(&self, pos: &Position) -> bool {
+        pos.x>=self.topleft.x && pos.x<=self.bottomright.x
+            && pos.y>=self.topleft.y && pos.y<=self.bottomright.y
+    }
+}
+
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MapTile;
 
@@ -136,3 +151,7 @@ pub enum Part {
     TOP,
     HAIR,
 }
+
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Player ;

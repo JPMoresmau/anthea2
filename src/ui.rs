@@ -11,26 +11,14 @@ pub struct UIPlugin;
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app
-            .insert_resource(MessageQueue::default())
+            .add_event::<ClearMessage>()
+            .add_event::<MessageEvent>()
             .add_system(message_system.system())
             .add_system(message_decoration_system.system())
             .add_system(message_clear_system.system())
         ;
     }
 }
-
-pub struct MessageQueue {
-    pub messages: Vec<Message>,
-    pub clear: bool,
-    pub font_handle: Handle<Font>,
-}
-
-impl Default for MessageQueue {
-    fn default() -> Self {
-        MessageQueue{messages:vec![], clear:false, font_handle:Default::default()}
-    }
-}
-
 #[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord, EnumIter)]
 pub enum MessageStyle {
     Title,
@@ -39,11 +27,30 @@ pub enum MessageStyle {
     Help,
 }
 
+
+#[derive(Debug,Clone,PartialEq, PartialOrd)]
+pub struct MessageEvent {
+    pub messages: Vec<Message>
+}
+
+impl MessageEvent {
+    pub fn new<S: Into<String>>(msg: S, style: MessageStyle) -> Self {
+        MessageEvent{messages:vec![Message{contents:msg.into(),style}]}
+    }
+
+    pub fn new_multi(msgs: Vec<Message>) -> Self {
+        MessageEvent{messages:msgs}
+    }
+}
+
 #[derive(Debug,Clone,PartialEq, PartialOrd)]
 pub struct Message {
     pub contents:String,
     pub style: MessageStyle,
 }
+
+#[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord,Default)]
+pub struct ClearMessage;
 
 #[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord, EnumIter)]
 pub enum MessageFramePart {
@@ -77,7 +84,7 @@ pub fn setup_ui( commands: &mut Commands,
     handles: Res<AntheaHandles>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut queue: ResMut<MessageQueue>,
+    mut queue: ResMut<Events<MessageEvent>>,
 ){
     let mut atlas = TextureAtlas::new_empty(handles.ui_handle.clone(), Vec2::new(1024.0,666.0) );
     
@@ -138,9 +145,9 @@ pub fn setup_ui( commands: &mut Commands,
         })
         .with(MessageText);
     });
-    queue.font_handle=handles.font_handle.clone();
-    queue.messages.push(Message{contents:"Anthea's Quest".to_owned(), style: MessageStyle::Title});
-    queue.messages.push(Message{contents:"Click to start".to_owned(), style: MessageStyle::Help});
+    queue.send(MessageEvent::new_multi(vec![
+        Message{contents:"Anthea's Quest".to_owned(), style: MessageStyle::Title},
+        Message{contents:"Click to start".to_owned(), style: MessageStyle::Help}]));
         
 }
 
@@ -179,18 +186,18 @@ fn build_section(msg: &Message, font: Handle<Font>, sep: &str) -> TextSection {
 }
 
 fn message_system(
+    handles: Res<AntheaHandles>,
     commands: &mut Commands,
-    mut queue: ResMut<MessageQueue>,
+    mut event_reader: EventReader<MessageEvent>,
     mut text_query: Query<(Entity, &MessageText, &mut Text, &mut Style)>){
-        if !queue.messages.is_empty() {
+        for me in event_reader.iter() {
             for (e, _mt, mut text, mut style) in &mut text_query.iter_mut() {
-                text.sections.clear();
                 style.align_self=Default::default();
                 let mut sep=String::new();
-                for msg in queue.messages.iter(){
-                    println!("Message: {:?}",msg);
-                    text.sections.push(build_section(&msg,queue.font_handle.clone(),&sep));
-                    commands.insert_one(e,ToFrame);
+                text.sections.clear();
+                for msg in me.messages.iter(){
+                    //println!("Message: {:?}",msg);
+                    text.sections.push(build_section(&msg,handles.font_handle.clone(),&sep));
                     if msg.style==MessageStyle::Info {
                         style.align_self= AlignSelf::FlexStart;
                     }
@@ -198,93 +205,102 @@ fn message_system(
                         sep="\n".into();
                     }
                 }
-                queue.messages.clear();
+                commands.insert_one(e,ToFrame);
             }
+           
         }
+        
 }
 
 fn message_decoration_system(
     commands: &mut Commands,
-    text_query: Query<(Entity, &Text, &CalculatedSize, &Transform, &ToFrame)>,
+    text_query: Query<(Entity, &Text, &CalculatedSize, &Transform),With<ToFrame>>,
     mut bg_query: Query<(&Background, &mut Visible, &mut Transform)>,
     mut part_query: Query<(&MessageFramePart, &mut Visible, &mut Transform)>
 ){
-    for (e, t,cs,ttr, _tf) in text_query.iter(){
-        if t.sections[0].value.len()>0{
+    for (e, t,cs,ttr) in text_query.iter(){
+        if t.sections.len()>0 && t.sections[0].value.len()>0{
             //println!("text transform: {:?}",ttr.translation);
             let w = cs.size.width+20.0;
             let h = cs.size.height+20.0;
+            let mut z = 0.5;
             for (_b,mut v,mut tr) in bg_query.iter_mut(){
                 v.is_visible=true;
                 tr.scale.x=(w+20.0)/512.0;
                 tr.scale.y=(h+20.0)/512.0;
                 tr.translation.x=ttr.translation.x;
                 tr.translation.y=ttr.translation.y;
+                tr.translation.z=z;
             }
+            z = 0.6;
+            //ttr.translation.z=z+1.0;
             for (fp,mut v,mut tr) in part_query.iter_mut(){
                 v.is_visible=true;
+                
                 match fp {
                     MessageFramePart::TopLeft => {
                         tr.translation.x=-w/2.0;
                         tr.translation.y=h/2.0;
-                        tr.translation.z=1.0;
+                        tr.translation.z=z;
                     },
                     MessageFramePart::Top => {
                         tr.translation.x=0.0;
                         tr.translation.y=h/2.0;
-                        tr.translation.z=1.0;
+                        tr.translation.z=z;
                         tr.scale.x=(w-20.0)/72.0;
                     },
                     MessageFramePart::TopRight => {
                         tr.translation.x=w/2.0;
                         tr.translation.y=h/2.0;
-                        tr.translation.z=1.0;
+                        tr.translation.z=z;
                     },
                     MessageFramePart::Left => {
                         tr.translation.x=-w/2.0;
                         tr.translation.y=0.0;
-                        tr.translation.z=1.0;
+                        tr.translation.z=z;
                         tr.scale.y=(h-16.0)/56.0;
                     },
                     MessageFramePart::Right => {
                         tr.translation.x=w/2.0;
                         tr.translation.y=0.0;
-                        tr.translation.z=1.0;
+                        tr.translation.z=z;
                         tr.scale.y=(h-16.0)/56.0;
                     },
                     MessageFramePart::BottomLeft => {
                         tr.translation.x=-w/2.0;
                         tr.translation.y=-h/2.0;
-                        tr.translation.z=1.0;
+                        tr.translation.z=z;
                     },
                     MessageFramePart::Bottom => {
                         tr.translation.x=0.0;
                         tr.translation.y=-h/2.0;
-                        tr.translation.z=1.0;
+                        tr.translation.z=z;
                         tr.scale.x=(w-18.0)/72.0;
                     },
                     MessageFramePart::BottomRight => {
                         tr.translation.x=w/2.0;
                         tr.translation.y=-h/2.0;
-                        tr.translation.z=1.0;
+                        tr.translation.z=z;
                     },
                 }
                 tr.translation.x+=ttr.translation.x;
                 tr.translation.y+=ttr.translation.y;
                 
             }
+            commands.remove_one::<ToFrame>(e);
         }
-        commands.remove_one::<ToFrame>(e);
+       
     }
 }
 
-fn message_clear_system(mut queue: ResMut<MessageQueue>,
+fn message_clear_system(    
+    mut event_reader: EventReader<ClearMessage>,
     mut bg_query: Query<(&Background, &mut Visible)>,
     mut part_query: Query<(&MessageFramePart, &mut Visible)>,
     mut text_query: Query<(&MessageText, &mut Text)>,
     ){
-        if queue.clear {
-            queue.clear=false;
+        for _ev in event_reader.iter() {
+            //println!("clear");
             for (_b,mut v) in bg_query.iter_mut() {
                 v.is_visible=false;
             }

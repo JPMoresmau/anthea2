@@ -167,9 +167,6 @@ pub fn is_tile_passable(path:&str) -> bool{
     if img.contains("column"){
         return false;
     }
-    if img.contains("fountain"){
-        return false;
-    }
     return true;
 }
 

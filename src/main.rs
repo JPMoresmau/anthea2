@@ -1,9 +1,8 @@
-use bevy::{app::startup_stage, asset::{LoadState, SourceInfo}, diagnostic::EntityCountDiagnosticsPlugin, prelude::*, 
-    render::pass, sprite::TextureAtlasBuilder,};
+use bevy::{asset::{LoadState}, prelude::*, 
+    sprite::TextureAtlasBuilder,};
 
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+//use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 
-use std::{cmp::max, collections::{HashMap, HashSet}, intrinsics::transmute, time::{Instant}};
 
 pub mod base;
 use base::*;
@@ -13,6 +12,9 @@ pub mod ui;
 use ui::*;
 pub mod world;
 use world::*;
+
+pub mod stages;
+use stages::castle::*;
 
 fn main() {
     App::build()
@@ -39,6 +41,7 @@ const STAGE: &str = "app_state";
 #[derive(Clone)]
 enum AppState {
     Setup,
+    Background,
     Finished,
 }
 
@@ -50,7 +53,8 @@ impl Plugin for AntheaPlugin {
             .insert_resource(AntheaState::default())
             .insert_resource(MouseLocation::default())
             .insert_resource(State::new(AppState::Setup))
-            .insert_resource(stage1())
+            .add_event::<AffordanceEvent>()
+            .add_plugin(CastlePlugin)
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
             .add_asset::<TileSet>()
@@ -58,8 +62,8 @@ impl Plugin for AntheaPlugin {
             .add_stage_after(stage::UPDATE, STAGE, StateStage::<AppState>::default())
             .on_state_enter(STAGE, AppState::Setup, load_textures.system())
             .on_state_update(STAGE, AppState::Setup, check_textures.system())
-            .on_state_enter(STAGE, AppState::Finished, setup_camera.system())
-            .on_state_enter(STAGE, AppState::Finished, setup_map.system())
+            .on_state_enter(STAGE, AppState::Background, setup_camera.system())
+            .on_state_enter(STAGE, AppState::Background, setup_map.system())
             .on_state_enter(STAGE, AppState::Finished, setup_people.system())
             .on_state_enter(STAGE, AppState::Finished, setup_ui.system())
             .add_system(player_movement_system.system())
@@ -97,7 +101,7 @@ fn check_textures(
         .chain(std::iter::once(rpg_sprite_handles.font_handle.id))
     );
     if let LoadState::Loaded = ls {
-        state.set_next(AppState::Finished).unwrap();
+        state.set_next(AppState::Background).unwrap();
     }
 }
 
@@ -116,12 +120,13 @@ fn setup_camera(commands: &mut Commands) {
 fn setup_map( commands: &mut Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
-    stage: Res<Stage>,
+    stage: Res<Area>,
     mut state: ResMut<AntheaState>,
     map_assets: Res<Assets<Map>>,
     tileset_assets: Res<Assets<TileSet>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
+    mut appstate: ResMut<State<AppState>>,
 ){
     let map = map_assets.get(&sprite_handles.map_handles[stage.map_index]).unwrap();
     let ts = tileset_assets.get(&sprite_handles.tileset_handle).unwrap();
@@ -131,7 +136,7 @@ fn setup_map( commands: &mut Commands,
         let texture = textures.get(handle).unwrap();
         texture_atlas_builder.add_texture(handle.clone_weak().typed::<Texture>(), texture);
     }
-        
+    state.map_position=stage.start.clone();
     let texture_atlas = texture_atlas_builder.finish(&mut textures).unwrap();
     
     let atlas_handle = texture_atlases.add(texture_atlas);
@@ -154,7 +159,7 @@ fn setup_map( commands: &mut Commands,
                     ..Default::default()
                 }).with(MapTile);
 
-                let rel_pos=START_MAP_POSITION.to_relative(&pos);
+                let rel_pos=state.map_position.to_relative(&pos);
                 let e = state.positions.entry(rel_pos.clone()).or_default();
                 e.entities.push(commands.current_entity().unwrap());
                 let pass =  is_tile_passable(path);
@@ -176,6 +181,8 @@ fn setup_map( commands: &mut Commands,
             }
         }
     }
+    appstate.set_next(AppState::Finished).unwrap();
+    //println!("finished map");
     //println!("Revealed: {:?}",state.revealed);
 }
 
@@ -185,6 +192,7 @@ fn setup_people( commands: &mut Commands,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
 ){
+    //println!("starting people");
     let mut texture_atlas_builder = TextureAtlasBuilder::default();
     for handle in sprite_handles.people_handles.iter() {
         let texture = textures.get(handle).unwrap();
@@ -207,37 +215,41 @@ fn setup_people( commands: &mut Commands,
 
     let atlas_handle = texture_atlases.add(texture_atlas);
 
-    let pos = Position::default().to_vec3();
-
+    let mut pos = Position::default().to_vec3();
+    pos.z=0.3;
     commands
-        .spawn(SpriteSheetBundle {
-            sprite: TextureAtlasSprite::new(body_index as u32),
-            texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_translation(pos),
-            ..Default::default()
-        })
-        .with(PlayerPart{part:Part::BODY})
-        .spawn(SpriteSheetBundle {
-                sprite: TextureAtlasSprite::new(pants_index as u32),
-                texture_atlas: atlas_handle.clone(),
-                transform: Transform::from_translation(pos),
-                ..Default::default()}
-        )
-        .with(PlayerPart{part:Part::PANTS})
-        .spawn(SpriteSheetBundle {
-            sprite: TextureAtlasSprite::new(top_index as u32),
-            texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_translation(pos),
-            ..Default::default()}
-        )
-        .with(PlayerPart{part:Part::TOP})
-        .spawn(SpriteSheetBundle {
-            sprite: TextureAtlasSprite::new(hair_index as u32),
-            texture_atlas: atlas_handle.clone(),
-            transform: Transform::from_translation(pos),
-            ..Default::default()}
-        )
-        .with(PlayerPart{part:Part::HAIR})
+        .spawn((Player,))
+        .with_children(|p| {
+            p
+                .spawn(SpriteSheetBundle {
+                    sprite: TextureAtlasSprite::new(body_index as u32),
+                    texture_atlas: atlas_handle.clone(),
+                    transform: Transform::from_translation(pos),
+                    ..Default::default()
+                })
+                .with(PlayerPart{part:Part::BODY})
+                .spawn(SpriteSheetBundle {
+                        sprite: TextureAtlasSprite::new(pants_index as u32),
+                        texture_atlas: atlas_handle.clone(),
+                        transform: Transform::from_translation(pos),
+                        ..Default::default()}
+                )
+                .with(PlayerPart{part:Part::PANTS})
+                .spawn(SpriteSheetBundle {
+                    sprite: TextureAtlasSprite::new(top_index as u32),
+                    texture_atlas: atlas_handle.clone(),
+                    transform: Transform::from_translation(pos),
+                    ..Default::default()}
+                )
+                .with(PlayerPart{part:Part::TOP})
+                .spawn(SpriteSheetBundle {
+                    sprite: TextureAtlasSprite::new(hair_index as u32),
+                    texture_atlas: atlas_handle.clone(),
+                    transform: Transform::from_translation(pos),
+                    ..Default::default()}
+                )
+                .with(PlayerPart{part:Part::HAIR});
+            })
         ;
         
 }
@@ -246,8 +258,10 @@ fn player_movement_system(
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
     mut state: ResMut<AntheaState>,
+    stage: Res<Area>,
     mut map_query: Query<(&MapTile, &mut Transform, &mut Visible)>,
-    mut msg: ResMut<MessageQueue>,
+    mut msg: ResMut<Events<ClearMessage>>,
+    mut ev_affordance: ResMut<Events<AffordanceEvent>>,
 ){
     state.last_move+=time.delta().as_millis();
     if state.last_move<MOVE_DELAY{
@@ -272,25 +286,35 @@ fn player_movement_system(
                     new_pos.copy(&state.map_position);
                 }
             }
-            msg.clear=true;
+            msg.send(ClearMessage);
         }
-
         if new_pos!=state.map_position {
+
             state.last_move=0;
-            let dif_x = (new_pos.x-state.map_position.x) as f32;
-            let dif_y = (new_pos.y-state.map_position.y) as f32;
-            state.map_position=new_pos;
-            
-            for (_tile, mut transform, mut vis) in &mut map_query.iter_mut() {
-                transform.translation.x+=dif_x;
-                transform.translation.y+=dif_y;
-                if !vis.is_visible && is_visible(&transform.translation,Some(&state)){
-                    vis.is_visible=true;
-                    let pos = state.map_position.to_relative(&Position::new(transform.translation.x as i32, transform.translation.y as i32));
-                    //println!("Revealing: {:?}",pos);
-                    state.revealed.insert(pos);
-                    
+
+            let rel_x = -(new_pos.x as f32);
+            let rel_y = new_pos.y as f32 ;
+
+            if let Some(a) = stage.affordance_from_coords(rel_x,rel_y){
+                // println!("Affordance: {}",a.name);
+                ev_affordance.send(AffordanceEvent(a.name.clone()));
+            } else {
+                let dif_x = (new_pos.x-state.map_position.x) as f32;
+                let dif_y = (new_pos.y-state.map_position.y) as f32;
+                state.map_position=new_pos;
+                
+                for (_tile, mut transform, mut vis) in &mut map_query.iter_mut() {
+                    transform.translation.x+=dif_x;
+                    transform.translation.y+=dif_y;
+                    if !vis.is_visible && is_visible(&transform.translation,Some(&state)){
+                        vis.is_visible=true;
+                        let pos = state.map_position.to_relative(&Position::new(transform.translation.x as i32, transform.translation.y as i32));
+                        //println!("Revealing: {:?}",pos);
+                        state.revealed.insert(pos);
+                        
+                    }
                 }
+                
             }
             
         }
@@ -370,14 +394,15 @@ fn cursor_system(
 
 fn click_system(mouse_button_input: Res<Input<MouseButton>>,
     location: Res<MouseLocation>,
-    mut queue: ResMut<MessageQueue>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut clearm: ResMut<Events<ClearMessage>>,
     mut state: ResMut<AntheaState>,
-    stage: Res<Stage>,
+    stage: Res<Area>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
 
         match state.game_state {
-            GameState::Start => {queue.clear=true; state.game_state=GameState::Running;},
+            GameState::Start => {clearm.send(ClearMessage); state.game_state=GameState::Running;},
             GameState::Running => {
                 //println!("left mouse currently pressed as: {} {}",location.x,location.y);
 
@@ -394,13 +419,15 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
                     }
                 }
                 if revealed {
-                    if let Some(r) = stage.room_from_coords(rel_x,rel_y){
-                        queue.messages.push(Message{contents:r.description.clone(), style: MessageStyle::Info});
+                    if let Some(a) = stage.affordance_from_coords(rel_x,rel_y){
+                        queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
+                    } else if let Some(r) = stage.room_from_coords(rel_x,rel_y){
+                        queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
                     } else {
-                        queue.clear=true;
+                        clearm.send(ClearMessage);
                     }
                 } else {
-                    queue.clear=true;
+                    clearm.send(ClearMessage);
                 }
         
             },
