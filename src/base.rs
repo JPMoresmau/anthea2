@@ -20,7 +20,8 @@ pub const MOVE_DELAY: u128 = 200;
 #[derive(Default)]
 pub struct AntheaHandles {
     pub people_handles: Vec<HandleUntyped>,
-    pub tiles_handles: Vec<HandleUntyped>,
+    pub tile_handles: Vec<HandleUntyped>,
+    pub item_handles: Vec<HandleUntyped>,
     pub tileset_handle: Handle<TileSet>,
     pub map_handles: Vec<Handle<Map>>,
     pub ui_handle: Handle<Texture>,
@@ -99,6 +100,10 @@ impl Position {
         Vec3::new(self.x as f32,self.y as f32, 0.0)
     }
 
+    pub fn to_vec3_z(&self, z: f32) -> Vec3 {
+        Vec3::new(self.x as f32,self.y as f32, z)
+    }
+
     pub fn from_vec3(v: &Vec3)-> Position {
         Position{x:v.x as i32, y:v.y as i32}
     }
@@ -140,6 +145,7 @@ impl Dimension {
         pos.x>=self.topleft.x && pos.x<=self.bottomright.x
             && pos.y>=self.topleft.y && pos.y<=self.bottomright.y
     }
+
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]

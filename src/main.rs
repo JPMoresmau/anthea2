@@ -64,6 +64,7 @@ impl Plugin for AntheaPlugin {
             .on_state_update(STAGE, AppState::Setup, check_textures.system())
             .on_state_enter(STAGE, AppState::Background, setup_camera.system())
             .on_state_enter(STAGE, AppState::Background, setup_map.system())
+            .on_state_enter(STAGE, AppState::Finished, setup_items.system())
             .on_state_enter(STAGE, AppState::Finished, setup_people.system())
             .on_state_enter(STAGE, AppState::Finished, setup_ui.system())
             .add_system(player_movement_system.system())
@@ -77,7 +78,8 @@ impl Plugin for AntheaPlugin {
 
 fn load_textures(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Res<AssetServer>) {
     rpg_sprite_handles.people_handles = asset_server.load_folder("sprites/people").unwrap();
-    rpg_sprite_handles.tiles_handles = asset_server.load_folder("sprites/tiles").unwrap();
+    rpg_sprite_handles.tile_handles = asset_server.load_folder("sprites/tiles").unwrap();
+    rpg_sprite_handles.item_handles = asset_server.load_folder("sprites/items").unwrap();
     rpg_sprite_handles.tileset_handle = asset_server.load("anthea_tileset.tsx");
     rpg_sprite_handles.map_handles=vec![asset_server.load("castle1.tmx")];
     rpg_sprite_handles.ui_handle = asset_server.load("RPG_GUI_v1.png");
@@ -92,7 +94,8 @@ fn check_textures(
     asset_server: Res<AssetServer>,
 ) {
     let ls = asset_server.get_group_load_state(rpg_sprite_handles.people_handles.iter()
-        .chain(rpg_sprite_handles.tiles_handles.iter())
+        .chain(rpg_sprite_handles.tile_handles.iter())
+        .chain(rpg_sprite_handles.item_handles.iter())
         .map(|handle| handle.id)
         .chain(rpg_sprite_handles.map_handles.iter().map(|h| h.id))
         .chain(std::iter::once(rpg_sprite_handles.tileset_handle.id))
@@ -132,7 +135,7 @@ fn setup_map( commands: &mut Commands,
     let ts = tileset_assets.get(&sprite_handles.tileset_handle).unwrap();
 
     let mut texture_atlas_builder = TextureAtlasBuilder::default();
-    for handle in sprite_handles.tiles_handles.iter() {
+    for handle in sprite_handles.tile_handles.iter() {
         let texture = textures.get(handle).unwrap();
         texture_atlas_builder.add_texture(handle.clone_weak().typed::<Texture>(), texture);
     }
@@ -181,9 +184,45 @@ fn setup_map( commands: &mut Commands,
             }
         }
     }
+
+    
     appstate.set_next(AppState::Finished).unwrap();
     //println!("finished map");
     //println!("Revealed: {:?}",state.revealed);
+}
+
+fn setup_items(commands: &mut Commands,
+    sprite_handles: Res<AntheaHandles>,
+    asset_server: Res<AssetServer>,
+    stage: Res<Area>,
+    state: Res<AntheaState>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut textures: ResMut<Assets<Texture>>,
+    ){
+    let mut texture_atlas_builder = TextureAtlasBuilder::default();
+    for handle in sprite_handles.item_handles.iter() {
+        let texture = textures.get(handle).unwrap();
+        texture_atlas_builder.add_texture(handle.clone_weak().typed::<Texture>(), texture);
+    }
+    let texture_atlas = texture_atlas_builder.finish(&mut textures).unwrap();
+    
+    let atlas_handle = texture_atlases.add(texture_atlas);
+    let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();   
+    for item in stage.items.values(){
+        let item_handle = asset_server.get_handle(item.sprite.as_str());
+        let item_index = texture_atlas.get_texture_index(&item_handle).unwrap();
+        let pos=Position{x:state.map_position.x+item.position.x,y:state.map_position.y-item.position.y}.to_vec3_z(0.3);
+        let vis= is_visible(&pos,None);
+        commands.spawn(SpriteSheetBundle {
+            sprite: TextureAtlasSprite::new(item_index as u32),
+            texture_atlas: atlas_handle.clone(),
+            transform: Transform::from_translation(pos),
+            visible: Visible{is_transparent:true,is_visible:vis},
+            ..Default::default()
+        })
+        .with(item.clone());
+    }
+    
 }
 
 fn setup_people( commands: &mut Commands,
@@ -215,8 +254,7 @@ fn setup_people( commands: &mut Commands,
 
     let atlas_handle = texture_atlases.add(texture_atlas);
 
-    let mut pos = Position::default().to_vec3();
-    pos.z=0.3;
+    let pos = Position::default().to_vec3_z(0.3);
     commands
         .spawn((Player,))
         .with_children(|p| {
@@ -259,7 +297,7 @@ fn player_movement_system(
     time: Res<Time>,
     mut state: ResMut<AntheaState>,
     stage: Res<Area>,
-    mut map_query: Query<(&MapTile, &mut Transform, &mut Visible)>,
+    mut sprite_query: Query<(&mut Transform, &mut Visible),Or<(With<MapTile>,With<Item>)>>,
     mut msg: ResMut<Events<ClearMessage>>,
     mut ev_affordance: ResMut<Events<AffordanceEvent>>,
 ){
@@ -299,11 +337,14 @@ fn player_movement_system(
                 // println!("Affordance: {}",a.name);
                 ev_affordance.send(AffordanceEvent(a.name.clone()));
             } else {
+                if let Some(i) = stage.item_from_coords(rel_x,rel_y){
+                    println!("Item: {}",i.name);
+                }
                 let dif_x = (new_pos.x-state.map_position.x) as f32;
                 let dif_y = (new_pos.y-state.map_position.y) as f32;
                 state.map_position=new_pos;
                 
-                for (_tile, mut transform, mut vis) in &mut map_query.iter_mut() {
+                for ( mut transform, mut vis) in &mut sprite_query.iter_mut() {
                     transform.translation.x+=dif_x;
                     transform.translation.y+=dif_y;
                     if !vis.is_visible && is_visible(&transform.translation,Some(&state)){
@@ -314,7 +355,7 @@ fn player_movement_system(
                         
                     }
                 }
-                
+               
             }
             
         }
@@ -421,6 +462,8 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
                 if revealed {
                     if let Some(a) = stage.affordance_from_coords(rel_x,rel_y){
                         queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
+                    } else if let Some(i) = stage.item_from_coords(rel_x,rel_y){
+                        queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
                     } else if let Some(r) = stage.room_from_coords(rel_x,rel_y){
                         queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
                     } else {

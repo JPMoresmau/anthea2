@@ -8,12 +8,13 @@ pub struct Area {
     pub start: Position,
     pub rooms: HashMap<String, Room>,
     pub affordances: HashMap<String, Affordance>,
+    pub items: HashMap<String, Item>,
 }
 
 
 impl Area {
     pub fn new<S: Into<String>>(name: S, map_index: usize, start: Position) -> Self {
-        Self{name:name.into(),map_index,start,rooms:HashMap::new(),affordances:HashMap::new()}
+        Self{name:name.into(),map_index,start,rooms:HashMap::new(),affordances:HashMap::new(),items:HashMap::new()}
     }
 
     pub fn add_room<'a>(&'a mut self, room: Room) -> &'a mut Self {
@@ -41,6 +42,19 @@ impl Area {
     pub fn affordance_from_coords<'a>(&'a self, x: f32, y:f32) -> Option<&'a Affordance> {
         self.affordance_from_position(&Position::new(x as i32, y as i32))
     }
+
+    pub fn add_item<'a>(&'a mut self, item: Item) -> &'a mut Self {
+        self.items.insert(item.name.clone(),item);
+        self
+    }
+
+    pub fn item_from_position<'a>(&'a self, pos: &Position) -> Option<&'a Item> {
+        self.items.values().filter(|r| r.dimension.contains(pos)).next()
+    }
+
+    pub fn item_from_coords<'a>(&'a self, x: f32, y:f32) -> Option<&'a Item> {
+        self.item_from_position(&Position::new(x as i32, y as i32))
+    }
 }
 
 #[derive(Debug,Clone)]
@@ -67,6 +81,8 @@ impl Room {
     }
 }
 
+
+#[derive(Debug,Clone)]
 pub struct Affordance {
     pub name: String,
     pub description: String,
@@ -81,6 +97,26 @@ impl Affordance {
 }
 
 pub struct AffordanceEvent(pub String);
+
+#[derive(Debug,Clone)]
+pub struct Item {
+    pub name: String,
+    pub description: String,
+    pub sprite: String,
+    pub position: Position,
+    pub dimension: Dimension,
+}
+
+impl Item {
+    pub fn new<S1: Into<String>,S2: Into<String>,S3: Into<String>>(name: S1, description: S2,sprite: S3, x1: i32, y1: i32) -> Self {
+        Self{name: name.into(),description:description.into(),sprite:sprite.into(),position: sprite_position(x1, y1),dimension: sprite_dimensions(x1, y1,x1,y1)}
+    }
+
+}
+
+
+pub struct ItemEvent(pub String);
+
 
 pub fn sprite_position(x: i32, y: i32) -> Position {
     Position::new(x*SPRITE_SIZE, y*SPRITE_SIZE)

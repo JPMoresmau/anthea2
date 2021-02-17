@@ -1,5 +1,6 @@
 use crate::world::*;
 use crate::base::*;
+use crate::ui::*;
 use bevy::prelude::*;
 
 pub struct CastlePlugin;
@@ -17,6 +18,7 @@ impl Plugin for CastlePlugin {
 
 const MIRROR: &str= "mirror";
 const FOUNTAIN: &str= "fountain";
+const SCISSORS: &str= "scissors";
 
 fn castle_area() -> Area {
     let mut stage = Area::new("Selaion Palace",0, sprite_position(-7,4));
@@ -49,6 +51,8 @@ fn castle_area() -> Area {
     let fountain=Affordance::new(FOUNTAIN, "The garden fountain",  11, 10);
     stage.add_affordance(mirror).add_affordance(fountain);
 
+    let scissors=Item::new(SCISSORS, "Sharpish scissors","sprites/items/double_sword.png",14,12);
+    stage.add_item(scissors);
     stage
 }
 
@@ -56,9 +60,10 @@ fn affordance_mirror(
     commands: &mut Commands,
     player_query: Query<(Entity, &Player)>,
     mut event_reader: EventReader<AffordanceEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
 ){
-    for e in event_reader.iter().filter(|e| e.0==MIRROR) {
-        println!("you interact with the mirror");
+    for _e in event_reader.iter().filter(|e| e.0==MIRROR) {
+        queue.send(MessageEvent::new("You look at yourself in the mirror", MessageStyle::Info));
     }
 }
 
@@ -66,8 +71,9 @@ fn affordance_fountain(
     commands: &mut Commands,
     player_query: Query<(Entity, &Player)>,
     mut event_reader: EventReader<AffordanceEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
 ){
-    for e in event_reader.iter().filter(|e| e.0==FOUNTAIN) {
-        println!("you interact with the fountain");
+    for _e in event_reader.iter().filter(|e| e.0==FOUNTAIN) {
+        queue.send(MessageEvent::new("The water is refreshing.", MessageStyle::Info));
     }
 }
