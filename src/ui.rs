@@ -22,6 +22,7 @@ impl Plugin for UIPlugin {
 #[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord, EnumIter)]
 pub enum MessageStyle {
     Title,
+    MenuTitle,
     Info,
     Interaction,
     Help,
@@ -35,7 +36,7 @@ pub struct MessageEvent {
 
 impl MessageEvent {
     pub fn new<S: Into<String>>(msg: S, style: MessageStyle) -> Self {
-        MessageEvent{messages:vec![Message{contents:msg.into(),style}]}
+        MessageEvent{messages:vec![Message::new(msg,style)]}
     }
 
     pub fn new_multi(msgs: Vec<Message>) -> Self {
@@ -47,6 +48,12 @@ impl MessageEvent {
 pub struct Message {
     pub contents:String,
     pub style: MessageStyle,
+}
+
+impl Message {
+    pub fn new<S: Into<String>>(msg: S, style: MessageStyle) -> Self {
+        Message{contents:msg.into(),style}
+    }
 }
 
 #[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord,Default)]
@@ -64,10 +71,17 @@ pub enum MessageFramePart {
     BottomRight,
 }
 
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Background;
 
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MessageText;
-pub struct ToFrame;
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+struct ToFrame;
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MenuItem;
+
 
 const DIMENSIONS: &[((f32,f32),(f32,f32))]= &[
     ((857.0,192.0),(879.0,212.0)),
@@ -112,6 +126,7 @@ pub fn setup_ui( commands: &mut Commands,
             border: bevy::prelude::Rect::all(Val::Px(25.0)),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::ColumnReverse,
             ..Default::default()
         },
         material: materials.add(Color::NONE.into()),
@@ -121,8 +136,8 @@ pub fn setup_ui( commands: &mut Commands,
         parent.spawn(TextBundle {
            style: Style {
                 //border: bevy::prelude::Rect::all(Val::Px(50.0)),
-                align_self: AlignSelf::FlexStart,
-
+                align_self: AlignSelf::Center,
+                //margin: Default::default(),
                 //position_type: PositionType::Absolute,
                 /*position: bevy::prelude::Rect {
                     top: Val::Px(5.0),
@@ -170,7 +185,8 @@ fn spawn_frame(commands: &mut Commands,
 fn build_section(msg: &Message, font: Handle<Font>, sep: &str) -> TextSection {
     let font_size = match msg.style {
         MessageStyle::Title=> 72.0,
-        MessageStyle::Help => 12.0,
+        MessageStyle::Help => 16.0,
+        MessageStyle::MenuTitle => 32.0,
         _ => 20.0,
     };
     let style=TextStyle {
@@ -189,21 +205,63 @@ fn message_system(
     handles: Res<AntheaHandles>,
     commands: &mut Commands,
     mut event_reader: EventReader<MessageEvent>,
-    mut text_query: Query<(Entity, &MessageText, &mut Text, &mut Style)>){
+    mut text_query: Query<(Entity, &MessageText, &mut Text, &mut Style, &Parent)>,
+    mut style_query: Query<&mut Style,Without<Text>>){
         for me in event_reader.iter() {
-            for (e, _mt, mut text, mut style) in &mut text_query.iter_mut() {
+            for (e, _mt, mut text, mut style, parent) in &mut text_query.iter_mut() {
+                let mut ps = style_query.get_mut(parent.0).unwrap();
+                ps.justify_content=JustifyContent::Center;
                 style.align_self=Default::default();
                 let mut sep=String::new();
                 text.sections.clear();
+                let mut interactions=vec![];
                 for msg in me.messages.iter(){
                     //println!("Message: {:?}",msg);
-                    text.sections.push(build_section(&msg,handles.font_handle.clone(),&sep));
-                    if msg.style==MessageStyle::Info {
-                        style.align_self= AlignSelf::FlexStart;
+                    let ts=build_section(&msg,handles.font_handle.clone(),&sep);
+                    if msg.style==MessageStyle::Interaction {
+                        interactions.push(ts);
+                    } else {
+                        text.sections.push(ts);
+                        if msg.style==MessageStyle::Info {
+                        //    style.align_self= AlignSelf::FlexStart;
+                           
+                            ps.justify_content=JustifyContent::FlexEnd;
+                        }
+                        if sep.is_empty(){
+                            sep="\n".into();
+                        }
                     }
-                    if sep.is_empty(){
-                        sep="\n".into();
-                    }
+                }
+                if !interactions.is_empty(){
+                    commands.set_current_entity(parent.0);
+                    
+                    commands.with_children(|parent| {
+                        for ts in interactions.into_iter(){
+                            parent.spawn(TextBundle { 
+                                style: Style {
+                                    align_self: AlignSelf::Center,
+                                    margin: bevy::prelude::Rect::all(Val::Px(5.0)),
+                                    ..Default::default()
+                                },
+                                focus_policy: bevy::ui::FocusPolicy::Block,
+                                text: Text{sections:vec![ts],
+                                    ..Default::default()},
+                            ..Default::default()})
+                            .with(Interaction::None)
+                            .with(MenuItem);
+                        }
+                        parent.spawn(TextBundle { 
+                            style: Style {
+                                align_self: AlignSelf::Center,
+                                ..Default::default()
+                            },
+                            focus_policy: bevy::ui::FocusPolicy::Block,
+                            text: Text{sections:vec![build_section(&Message::new(CLOSE,MessageStyle::Help), handles.font_handle.clone(), "")],
+                                ..Default::default()},
+                        ..Default::default()})
+                        .with(Interaction::None)
+                        .with(MenuItem);
+                    });
                 }
                 commands.insert_one(e,ToFrame);
             }
@@ -215,21 +273,32 @@ fn message_system(
 fn message_decoration_system(
     commands: &mut Commands,
     text_query: Query<(Entity, &Text, &CalculatedSize, &Transform),With<ToFrame>>,
+    item_query: Query<(&CalculatedSize,&Text, &Transform),With<MenuItem>>,
     mut bg_query: Query<(&Background, &mut Visible, &mut Transform)>,
     mut part_query: Query<(&MessageFramePart, &mut Visible, &mut Transform)>
 ){
+
+
     for (e, t,cs,ttr) in text_query.iter(){
         if t.sections.len()>0 && t.sections[0].value.len()>0{
+            let mut max_w:f32=0.0;
+            let mut add_y = 0.0;
+            for (cs,_t,_tr) in item_query.iter(){
+                max_w=max_w.max(cs.size.width);
+                add_y+=cs.size.height+10.0;
+            }
+
             //println!("text transform: {:?}",ttr.translation);
-            let w = cs.size.width+20.0;
-            let h = cs.size.height+20.0;
+            let w = max_w.max(cs.size.width)+20.0;
+            let h = cs.size.height+20.0+add_y;
+            
             let mut z = 0.5;
             for (_b,mut v,mut tr) in bg_query.iter_mut(){
                 v.is_visible=true;
                 tr.scale.x=(w+20.0)/512.0;
                 tr.scale.y=(h+20.0)/512.0;
                 tr.translation.x=ttr.translation.x;
-                tr.translation.y=ttr.translation.y;
+                tr.translation.y=ttr.translation.y-add_y/2.0;
                 tr.translation.z=z;
             }
             z = 0.6;
@@ -285,7 +354,7 @@ fn message_decoration_system(
                 }
                 tr.translation.x+=ttr.translation.x;
                 tr.translation.y+=ttr.translation.y;
-                
+                tr.translation.y-=add_y/2.0;
             }
             commands.remove_one::<ToFrame>(e);
         }
@@ -294,10 +363,12 @@ fn message_decoration_system(
 }
 
 fn message_clear_system(    
+    commands: &mut Commands,
     mut event_reader: EventReader<ClearMessage>,
     mut bg_query: Query<(&Background, &mut Visible)>,
     mut part_query: Query<(&MessageFramePart, &mut Visible)>,
     mut text_query: Query<(&MessageText, &mut Text)>,
+    mut menu_query: Query<Entity,With<MenuItem>>,
     ){
         for _ev in event_reader.iter() {
             //println!("clear");
@@ -309,6 +380,9 @@ fn message_clear_system(
             }
             for (_p, mut t) in text_query.iter_mut() {
                 t.sections.clear()
+            }
+            for e in menu_query.iter_mut() {
+                commands.despawn_recursive(e);
             }
         }
 }

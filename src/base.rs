@@ -15,7 +15,8 @@ pub const VISIBILITY_DISTANCE: f32 = 4.0 * SPRITE_SIZE as f32;
 
 pub const MOVE_DELAY: u128 = 200;
 
-
+pub const STAGE: &str = "app_state";
+pub const CLOSE: &str = "Close";
 
 #[derive(Default)]
 pub struct AntheaHandles {
@@ -37,7 +38,6 @@ pub struct AntheaState {
     pub positions: HashMap<Position,TileEntityState>,
     pub revealed: HashSet<Position>,
     pub last_move: u128,
-    pub game_state: GameState,
 }
 
 impl Default for AntheaState {
@@ -48,7 +48,6 @@ impl Default for AntheaState {
            positions: HashMap::new(),
            revealed: HashSet::new(),
            last_move: 0,
-           game_state: GameState::Start,
         }
     }
 }
@@ -56,8 +55,11 @@ impl Default for AntheaState {
 
 #[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord, EnumIter)]
 pub enum GameState {
+    Setup,
+    Background,
     Start,
     Running,
+    Menu,
     Pause,
     End,
 }
@@ -161,3 +163,6 @@ pub enum Part {
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Player ;
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MainCamera;
