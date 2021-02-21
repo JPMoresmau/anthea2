@@ -96,6 +96,7 @@ impl Affordance {
 
 }
 
+#[derive(Debug,Clone)]
 pub struct AffordanceEvent(pub String);
 
 #[derive(Debug,Clone)]
@@ -115,6 +116,7 @@ impl Item {
 }
 
 
+#[derive(Debug,Clone)]
 pub struct ItemEvent(pub String);
 
 

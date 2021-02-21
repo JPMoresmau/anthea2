@@ -51,20 +51,21 @@ impl Plugin for AntheaPlugin {
             .insert_resource(AntheaState::default())
             .insert_resource(MouseLocation::default())
             .insert_resource(State::new(GameState::Setup))
+            .insert_resource(Journal::default())
             .add_event::<AffordanceEvent>()
             .add_plugin(CastlePlugin)
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
             .add_asset::<TileSet>()
             .init_asset_loader::<TileSetAssetLoader>()
-            .add_stage_after(stage::UPDATE, STAGE, StateStage::<GameState>::default())
+            .add_stage_after(CoreStage::Update, STAGE, StateStage::<GameState>::default())
             .on_state_enter(STAGE, GameState::Setup, load_textures.system())
             .on_state_update(STAGE, GameState::Setup, check_textures.system())
             .on_state_enter(STAGE, GameState::Background, setup_camera.system())
+            .on_state_update(STAGE, GameState::Title, setup_ui.system())
             .on_state_enter(STAGE, GameState::Background, setup_map.system())
             .on_state_enter(STAGE, GameState::Start, setup_items.system())
             .on_state_enter(STAGE, GameState::Start, setup_people.system())
-            .on_state_enter(STAGE, GameState::Start, setup_ui.system())
             .on_state_update(STAGE, GameState::Start, start_system.system())
             .on_state_update(STAGE, GameState::Running, player_movement_system.system())
             .on_state_update(STAGE, GameState::Running, cursor_system.system())
@@ -104,7 +105,7 @@ fn check_textures(
         .chain(std::iter::once(rpg_sprite_handles.font_handle.id))
     );
     if let LoadState::Loaded = ls {
-        state.set_next(GameState::Background).unwrap();
+        state.set_next(GameState::Title).unwrap();
     }
 }
 
@@ -215,10 +216,22 @@ fn cursor_system(
 fn start_system(mouse_button_input: Res<Input<MouseButton>>,
     mut clearm: ResMut<Events<ClearMessage>>,
     mut appstate: ResMut<State<GameState>>,
+    mut state: ResMut<AntheaState>,
+    mut sprite_query: Query<(&Transform, &mut Visible),Or<(With<MapTile>,With<Item>)>>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
         clearm.send(ClearMessage); 
         appstate.set_next(GameState::Running).unwrap();
+        for ( transform, mut vis) in &mut sprite_query.iter_mut() {
+            if !vis.is_visible && is_visible(&transform.translation,Some(&state)){
+                vis.is_visible=true;
+                let pos = state.map_position.to_relative(&Position::new(transform.translation.x as i32, transform.translation.y as i32));
+                //println!("Revealing: {:?}",pos);
+                state.revealed.insert(pos);
+                
+            }
+        }
+       
     }
 }
 
@@ -248,7 +261,7 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
         }
         if revealed {
             if location.x.abs()<=SPRITE_SIZE as f32/2.0 && location.y.abs()<=SPRITE_SIZE as f32/2.0 {
-                println!("click on center");
+                //println!("click on center");
                 appstate.set_next(GameState::Menu).unwrap();
                 /*queue.send(MessageEvent::new_multi(vec![
                     Message::new("Journal",MessageStyle::Interaction),

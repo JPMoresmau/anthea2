@@ -14,17 +14,19 @@ impl Plugin for UIPlugin {
             .add_event::<ClearMessage>()
             .add_event::<MessageEvent>()
             .add_system(message_system.system())
-            .add_system(message_decoration_system.system())
-            .add_system(message_clear_system.system())
+            .add_system_to_stage(CoreStage::PostUpdate, message_decoration_system.system())
+            //.add_system(message_decoration_system.system())
+            .add_system_to_stage(CoreStage::PreUpdate, message_clear_system.system())
+            //.add_system(message_clear_system.system())
         ;
     }
 }
-#[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord, EnumIter)]
+#[derive(Debug,Clone,PartialEq, Eq, PartialOrd, Ord)]
 pub enum MessageStyle {
     Title,
     MenuTitle,
     Info,
-    Interaction,
+    Interaction(String),
     Help,
 }
 
@@ -80,7 +82,7 @@ pub struct MessageText;
 struct ToFrame;
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct MenuItem;
+pub struct InteractionItem(pub String);
 
 
 const DIMENSIONS: &[((f32,f32),(f32,f32))]= &[
@@ -99,6 +101,7 @@ pub fn setup_ui( commands: &mut Commands,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut queue: ResMut<Events<MessageEvent>>,
+    mut state: ResMut<State<GameState>>,
 ){
     let mut atlas = TextureAtlas::new_empty(handles.ui_handle.clone(), Vec2::new(1024.0,666.0) );
     
@@ -137,6 +140,7 @@ pub fn setup_ui( commands: &mut Commands,
            style: Style {
                 //border: bevy::prelude::Rect::all(Val::Px(50.0)),
                 align_self: AlignSelf::Center,
+                //flex_wrap: FlexWrap::Wrap,
                 //margin: Default::default(),
                 //position_type: PositionType::Absolute,
                 /*position: bevy::prelude::Rect {
@@ -163,7 +167,7 @@ pub fn setup_ui( commands: &mut Commands,
     queue.send(MessageEvent::new_multi(vec![
         Message{contents:"Anthea's Quest".to_owned(), style: MessageStyle::Title},
         Message{contents:"Click to start".to_owned(), style: MessageStyle::Help}]));
-        
+    state.set_next(GameState::Background).unwrap();
 }
 
 fn spawn_frame(commands: &mut Commands,
@@ -205,10 +209,10 @@ fn message_system(
     handles: Res<AntheaHandles>,
     commands: &mut Commands,
     mut event_reader: EventReader<MessageEvent>,
-    mut text_query: Query<(Entity, &MessageText, &mut Text, &mut Style, &Parent)>,
+    mut text_query: Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
     mut style_query: Query<&mut Style,Without<Text>>){
         for me in event_reader.iter() {
-            for (e, _mt, mut text, mut style, parent) in &mut text_query.iter_mut() {
+            for ( _mt, mut text, mut style, parent) in &mut text_query.iter_mut() {
                 let mut ps = style_query.get_mut(parent.0).unwrap();
                 ps.justify_content=JustifyContent::Center;
                 style.align_self=Default::default();
@@ -218,8 +222,8 @@ fn message_system(
                 for msg in me.messages.iter(){
                     //println!("Message: {:?}",msg);
                     let ts=build_section(&msg,handles.font_handle.clone(),&sep);
-                    if msg.style==MessageStyle::Interaction {
-                        interactions.push(ts);
+                    if let MessageStyle::Interaction(code) = &msg.style {
+                        interactions.push((ts,code));
                     } else {
                         text.sections.push(ts);
                         if msg.style==MessageStyle::Info {
@@ -236,11 +240,12 @@ fn message_system(
                     commands.set_current_entity(parent.0);
                     
                     commands.with_children(|parent| {
-                        for ts in interactions.into_iter(){
+                        for (ts,code) in interactions.into_iter(){
                             parent.spawn(TextBundle { 
                                 style: Style {
-                                    align_self: AlignSelf::Center,
+                                    //align_self: AlignSelf::Center,
                                     margin: bevy::prelude::Rect::all(Val::Px(5.0)),
+                                    max_size: Size::new(Val::Px(SCREEN_WIDTH as f32 *0.8), Val::Px(SCREEN_HEIGHT as f32*0.8)),
                                     ..Default::default()
                                 },
                                 focus_policy: bevy::ui::FocusPolicy::Block,
@@ -248,7 +253,7 @@ fn message_system(
                                     ..Default::default()},
                             ..Default::default()})
                             .with(Interaction::None)
-                            .with(MenuItem);
+                            .with(InteractionItem(code.clone()));
                         }
                         parent.spawn(TextBundle { 
                             style: Style {
@@ -260,10 +265,10 @@ fn message_system(
                                 ..Default::default()},
                         ..Default::default()})
                         .with(Interaction::None)
-                        .with(MenuItem);
+                        .with(InteractionItem(CLOSE.into()));
                     });
                 }
-                commands.insert_one(e,ToFrame);
+
             }
            
         }
@@ -271,19 +276,16 @@ fn message_system(
 }
 
 fn message_decoration_system(
-    commands: &mut Commands,
-    text_query: Query<(Entity, &Text, &CalculatedSize, &Transform),With<ToFrame>>,
-    item_query: Query<(&CalculatedSize,&Text, &Transform),With<MenuItem>>,
+    text_query: Query<(&Text, &CalculatedSize, &Transform),Mutated<CalculatedSize>>,
+    item_query: Query<(&Text, &CalculatedSize, &Transform),With<InteractionItem>>,
     mut bg_query: Query<(&Background, &mut Visible, &mut Transform)>,
     mut part_query: Query<(&MessageFramePart, &mut Visible, &mut Transform)>
 ){
-
-
-    for (e, t,cs,ttr) in text_query.iter(){
+    for (t,cs,ttr) in text_query.iter(){
         if t.sections.len()>0 && t.sections[0].value.len()>0{
             let mut max_w:f32=0.0;
             let mut add_y = 0.0;
-            for (cs,_t,_tr) in item_query.iter(){
+            for (_t,cs,_tr) in item_query.iter(){
                 max_w=max_w.max(cs.size.width);
                 add_y+=cs.size.height+10.0;
             }
@@ -298,7 +300,7 @@ fn message_decoration_system(
                 tr.scale.x=(w+20.0)/512.0;
                 tr.scale.y=(h+20.0)/512.0;
                 tr.translation.x=ttr.translation.x;
-                tr.translation.y=ttr.translation.y-add_y/2.0;
+                tr.translation.y=ttr.translation.y+add_y/2.0;
                 tr.translation.z=z;
             }
             z = 0.6;
@@ -354,9 +356,8 @@ fn message_decoration_system(
                 }
                 tr.translation.x+=ttr.translation.x;
                 tr.translation.y+=ttr.translation.y;
-                tr.translation.y-=add_y/2.0;
+                tr.translation.y+=add_y/2.0;
             }
-            commands.remove_one::<ToFrame>(e);
         }
        
     }
@@ -368,7 +369,7 @@ fn message_clear_system(
     mut bg_query: Query<(&Background, &mut Visible)>,
     mut part_query: Query<(&MessageFramePart, &mut Visible)>,
     mut text_query: Query<(&MessageText, &mut Text)>,
-    mut menu_query: Query<Entity,With<MenuItem>>,
+    mut menu_query: Query<Entity,With<InteractionItem>>,
     ){
         for _ev in event_reader.iter() {
             //println!("clear");

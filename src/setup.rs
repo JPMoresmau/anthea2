@@ -46,12 +46,11 @@ pub fn setup_map( commands: &mut Commands,
                 let tile_handle = asset_server.get_handle(path.as_str());
                 let tile_index = texture_atlas.get_texture_index(&tile_handle).unwrap();
                 let vec3 = pos.to_vec3();
-                let vis= is_visible(&vec3,None);
                 commands.spawn(SpriteSheetBundle {
                     sprite: TextureAtlasSprite::new(tile_index as u32),
                     texture_atlas: atlas_handle.clone(),
                     transform: Transform::from_translation(vec3),
-                    visible: Visible{is_transparent:true,is_visible:vis},
+                    visible: Visible{is_transparent:true,is_visible:false},
                     ..Default::default()
                 }).with(MapTile);
 
@@ -62,9 +61,6 @@ pub fn setup_map( commands: &mut Commands,
                 e.passable=e.passable&&pass;
                 if ix==0 && !pass {
                     e.transparent=false;
-                }
-                if vis {
-                    state.revealed.insert(rel_pos);
                 }
             }
             c+=1;

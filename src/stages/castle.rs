@@ -20,6 +20,7 @@ const MIRROR: &str= "mirror";
 const FOUNTAIN: &str= "fountain";
 const SCISSORS: &str= "scissors";
 
+
 fn castle_area() -> Area {
     let mut stage = Area::new("Selaion Palace",0, sprite_position(-7,4));
     let bedroom = Room::new("bedroom", "Your bedroom",6,3,9,6);

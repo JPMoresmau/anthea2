@@ -18,6 +18,9 @@ pub const MOVE_DELAY: u128 = 200;
 pub const STAGE: &str = "app_state";
 pub const CLOSE: &str = "Close";
 
+pub const QUEST_MAIN: &str = "main";
+
+
 #[derive(Default)]
 pub struct AntheaHandles {
     pub people_handles: Vec<HandleUntyped>,
@@ -56,6 +59,7 @@ impl Default for AntheaState {
 #[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord, EnumIter)]
 pub enum GameState {
     Setup,
+    Title,
     Background,
     Start,
     Running,
@@ -166,3 +170,60 @@ pub struct Player ;
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MainCamera;
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Journal {
+    pub quests: HashMap<String,Quest>,
+    pub entries: Vec<JournalEntry>,
+}
+
+
+impl Default for Journal {
+    fn default() -> Self {
+        let q=Quest::new(QUEST_MAIN,"Main Quest");
+        let mut j = Journal {quests:HashMap::new(), entries:vec![]};
+        j.add_quest(q)
+            .add_entry(JournalEntry::new(QUEST_MAIN,"I have decided it, and nothing will alter my resolve. I will set up in search for Father. Peleus cannot stop me."));
+
+        j
+    }
+
+}
+
+impl Journal {
+    pub fn add_quest<'a>(&'a mut self, quest:Quest) -> &'a mut Self {
+        self.quests.insert(quest.code.clone(),quest);
+        self
+    } 
+
+    pub fn add_entry<'a>(&'a mut self, entry:JournalEntry) -> &'a mut Self {
+        self.entries.push(entry);
+        self
+    } 
+}
+
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct JournalEntry {
+    pub quest: String,
+    pub text: String,
+}
+
+impl JournalEntry {
+    pub fn new<S1: Into<String>, S2: Into<String>>(quest: S1, text: S2) -> Self {
+        JournalEntry{quest:quest.into(),text:text.into()}
+    }
+}
+
+
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct Quest {
+    pub code: String,
+    pub text: String,
+}
+
+impl Quest {
+    pub fn new<S1: Into<String>, S2: Into<String>>(code: S1, text: S2) -> Self {
+        Quest{code:code.into(),text:text.into()}
+    }
+}
