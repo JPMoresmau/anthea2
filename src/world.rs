@@ -55,6 +55,14 @@ impl Area {
     pub fn item_from_coords<'a>(&'a self, x: f32, y:f32) -> Option<&'a Item> {
         self.item_from_position(&Position::new(x as i32, y as i32))
     }
+
+    pub fn remove_item_from_pos<'a>(&'a mut self, pos: &Position) -> Option<Item> {
+       if let Some(n)=self.item_from_position(pos).map(|i| i.name.clone()){
+            self.items.remove(&n)
+       } else {
+           None
+       }
+    }
 }
 
 #[derive(Debug,Clone)]
@@ -99,33 +107,9 @@ impl Affordance {
 #[derive(Debug,Clone)]
 pub struct AffordanceEvent(pub String);
 
-#[derive(Debug,Clone)]
-pub struct Item {
-    pub name: String,
-    pub description: String,
-    pub sprite: String,
-    pub position: Position,
-    pub dimension: Dimension,
-}
-
-impl Item {
-    pub fn new<S1: Into<String>,S2: Into<String>,S3: Into<String>>(name: S1, description: S2,sprite: S3, x1: i32, y1: i32) -> Self {
-        Self{name: name.into(),description:description.into(),sprite:sprite.into(),position: sprite_position(x1, y1),dimension: sprite_dimensions(x1, y1,x1,y1)}
-    }
-
-}
-
 
 #[derive(Debug,Clone)]
 pub struct ItemEvent(pub String);
 
-
-pub fn sprite_position(x: i32, y: i32) -> Position {
-    Position::new(x*SPRITE_SIZE, y*SPRITE_SIZE)
-}
-
-pub fn sprite_dimensions(x1: i32, y1: i32, x2: i32, y2: i32) -> Dimension {
-    Dimension::new(Position::new(x1*SPRITE_SIZE-SPRITE_SIZE/2, y1*SPRITE_SIZE-SPRITE_SIZE/2),Position::new(x2*SPRITE_SIZE+SPRITE_SIZE/2, y2*SPRITE_SIZE+SPRITE_SIZE/2))
-}
 
 

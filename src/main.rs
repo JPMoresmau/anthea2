@@ -52,6 +52,7 @@ impl Plugin for AntheaPlugin {
             .insert_resource(MouseLocation::default())
             .insert_resource(State::new(GameState::Setup))
             .insert_resource(Journal::default())
+            .insert_resource(Inventory::default())
             .add_event::<AffordanceEvent>()
             .add_plugin(CastlePlugin)
             .add_asset::<Map>()
@@ -70,6 +71,7 @@ impl Plugin for AntheaPlugin {
             .on_state_update(STAGE, GameState::Running, player_movement_system.system())
             .on_state_update(STAGE, GameState::Running, cursor_system.system())
             .on_state_update(STAGE, GameState::Running, click_system.system())
+            .on_state_update(STAGE, GameState::Running, pickup_item.system())
             .add_plugin(MenuPlugin)
             .add_plugin(UIPlugin)
             //.add_system(visibility_system.system())
@@ -111,13 +113,15 @@ fn check_textures(
 
 
 fn player_movement_system(
+    
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
     mut state: ResMut<AntheaState>,
-    stage: Res<Area>,
+    stage: ResMut<Area>,
     mut sprite_query: Query<(&mut Transform, &mut Visible),Or<(With<MapTile>,With<Item>)>>,
     mut msg: ResMut<Events<ClearMessage>>,
     mut ev_affordance: ResMut<Events<AffordanceEvent>>,
+
 ){
     state.last_move+=time.delta().as_millis();
     if state.last_move<MOVE_DELAY{
@@ -153,9 +157,7 @@ fn player_movement_system(
                 // println!("Affordance: {}",a.name);
                 ev_affordance.send(AffordanceEvent(a.name.clone()));
             } else {
-                if let Some(i) = stage.item_from_coords(rel_x,rel_y){
-                    println!("Item: {}",i.name);
-                }
+
                 let dif_x = (new_pos.x-state.map_position.x) as f32;
                 let dif_y = (new_pos.y-state.map_position.y) as f32;
                 state.map_position=new_pos;
@@ -178,6 +180,24 @@ fn player_movement_system(
     }
 }
 
+fn pickup_item(commands: &mut Commands,
+    state: Res<AntheaState>,
+    mut inventory: ResMut<Inventory>,
+    item_query: Query<(Entity, &Item)>,
+    mut stage: ResMut<Area>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    ){
+        if let Some(i) = stage.remove_item_from_pos(&state.map_position.inverse_x()){
+            println!("Item: {}",i.name);
+            for (e,_i2) in item_query.iter().filter(|(_e,i2)| i.name==i2.name) {
+                commands.despawn_recursive(e);
+            }
+            queue.send(MessageEvent::new(format!("{} picked up",i.description), MessageStyle::Info));
+            inventory.add_item(i);
+            
+        }
+    
+}
 
 
 fn cursor_system(
@@ -241,7 +261,7 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
     mut clearm: ResMut<Events<ClearMessage>>,
     state: Res<AntheaState>,
     stage: Res<Area>,
-    mut appstate: ResMut<State<GameState>>,
+    mut menu: ResMut<Events<MenuEvent>>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
 
@@ -262,7 +282,8 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
         if revealed {
             if location.x.abs()<=SPRITE_SIZE as f32/2.0 && location.y.abs()<=SPRITE_SIZE as f32/2.0 {
                 //println!("click on center");
-                appstate.set_next(GameState::Menu).unwrap();
+                //appstate.set_next(GameState::Menu).unwrap();
+                menu.send(MenuEvent::new(main_menu()));
                 /*queue.send(MessageEvent::new_multi(vec![
                     Message::new("Journal",MessageStyle::Interaction),
                     Message::new("Inventory",MessageStyle::Interaction),

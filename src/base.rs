@@ -131,9 +131,15 @@ impl Position {
         Position{x:-self.x,y:-self.y}
     }
 
+    pub fn inverse_x(&self) ->Position {
+        Position{x:-self.x,y:self.y}
+    }
+
     pub fn distance(&self, pos: &Position) -> i32 {
         (self.x-pos.x).abs().max((self.y-pos.y).abs())
     }
+
+    
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -226,4 +232,53 @@ impl Quest {
     pub fn new<S1: Into<String>, S2: Into<String>>(code: S1, text: S2) -> Self {
         Quest{code:code.into(),text:text.into()}
     }
+}
+
+#[derive(Debug,Clone)]
+pub struct Item {
+    pub name: String,
+    pub description: String,
+    pub sprite: String,
+    pub position: Position,
+    pub dimension: Dimension,
+}
+
+impl Item {
+    pub fn new<S1: Into<String>,S2: Into<String>,S3: Into<String>>(name: S1, description: S2,sprite: S3, x1: i32, y1: i32) -> Self {
+        Self{name: name.into(),description:description.into(),sprite:sprite.into(),position: sprite_position(x1, y1),dimension: sprite_dimensions(x1, y1,x1,y1)}
+    }
+
+}
+
+#[derive(Debug,Clone, Default)]
+pub struct Inventory {
+    pub items: Vec<Item>,
+}
+
+impl Inventory {
+    pub fn add_item<'a>(&'a mut self, item: Item) -> &'a mut Self {
+        self.items.push(item);
+        self.items.sort_by_key(|i| i.description.clone());
+        self
+    }
+
+    pub fn contains_item(&self, item: &str) -> bool {
+        self.items.iter().any(|i| i.name==item)
+    }
+
+    pub fn remove_item<'a>(&'a mut self, item: &str) -> &'a mut Self {
+        if let Some((ix,_e)) = self.items.iter().enumerate().filter(|(_ix,i)| i.name==item).next(){
+            self.items.remove(ix);
+        }
+        self
+    }
+}
+
+
+pub fn sprite_position(x: i32, y: i32) -> Position {
+    Position::new(x*SPRITE_SIZE, y*SPRITE_SIZE)
+}
+
+pub fn sprite_dimensions(x1: i32, y1: i32, x2: i32, y2: i32) -> Dimension {
+    Dimension::new(Position::new(x1*SPRITE_SIZE-SPRITE_SIZE/2, y1*SPRITE_SIZE-SPRITE_SIZE/2),Position::new(x2*SPRITE_SIZE+SPRITE_SIZE/2, y2*SPRITE_SIZE+SPRITE_SIZE/2))
 }

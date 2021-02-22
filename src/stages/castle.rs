@@ -1,5 +1,6 @@
 use crate::world::*;
 use crate::base::*;
+use crate::menu::*;
 use crate::ui::*;
 use bevy::prelude::*;
 
@@ -11,6 +12,7 @@ impl Plugin for CastlePlugin {
             .insert_resource(castle_area())
             .add_system(affordance_mirror.system())
             .add_system(affordance_fountain.system())
+            .add_system(action_fountain.system())
             //.add_system(message_clear_system.system())
         ;
     }
@@ -19,7 +21,7 @@ impl Plugin for CastlePlugin {
 const MIRROR: &str= "mirror";
 const FOUNTAIN: &str= "fountain";
 const SCISSORS: &str= "scissors";
-
+const CUT: &str= "cut";
 
 fn castle_area() -> Area {
     let mut stage = Area::new("Selaion Palace",0, sprite_position(-7,4));
@@ -69,12 +71,27 @@ fn affordance_mirror(
 }
 
 fn affordance_fountain(
-    commands: &mut Commands,
-    player_query: Query<(Entity, &Player)>,
+    inventory: Res<Inventory>,
     mut event_reader: EventReader<AffordanceEvent>,
     mut queue: ResMut<Events<MessageEvent>>,
+    mut menu: ResMut<Events<MenuEvent>>,
 ){
     for _e in event_reader.iter().filter(|e| e.0==FOUNTAIN) {
-        queue.send(MessageEvent::new("The water is refreshing.", MessageStyle::Info));
+        if inventory.contains_item(SCISSORS){
+            let mi=MenuItem::new(CUT,"Cut your hair with the scissors, using the fountain as a mirror");
+            let m=Menu::new(FOUNTAIN, "Fountain", vec![mi]);
+            menu.send(MenuEvent::new(m));
+        } else {
+            queue.send(MessageEvent::new("The water is refreshing.", MessageStyle::Info));
+        }
+    }
+}
+
+fn action_fountain(
+    mut event_reader: EventReader<MenuItemEvent>,
+    mut inventory: ResMut<Inventory>,
+){
+    if let Some(_e) = event_reader.iter().filter(|e| e.menu==FOUNTAIN && e.item==CUT).next() {
+        inventory.remove_item(SCISSORS);
     }
 }
