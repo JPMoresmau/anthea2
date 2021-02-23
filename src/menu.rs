@@ -23,6 +23,11 @@ impl Menus {
     pub fn pop<'a>(&'a mut self) -> Option<Menu> {
         self.menus.pop()
     }
+
+    pub fn clear<'a>(&'a mut self) -> &'a mut Self  {
+        self.menus.clear();
+        self
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -70,7 +75,7 @@ pub fn main_menu() -> Menu {
 fn journal_menu(journal: &Journal) -> Menu {
     let e=journal.entries.last().unwrap();
 
-    Menu::new(MAIN, "Journal",vec![MenuItem::new("",&e.text)])
+    Menu::new(JOURNAL, "Journal",vec![MenuItem::new("",&e.text)])
 }
 
 
@@ -79,32 +84,41 @@ fn inventory_menu(inventory: &Inventory) -> Menu {
     if msgs.is_empty() {
         msgs.push(MenuItem::new("empty","Empty hands!"));
     }
-    Menu::new(MAIN, "Inventory",msgs)
+    Menu::new(INVENTORY, "Inventory",msgs)
 }
 
+fn talents_menu(talents: &Talents) -> Menu {
+    Menu::new(TALENTS, "Talents", vec![
+        MenuItem::new("animals",format!("Animals: {}",talents.animals)),
+        MenuItem::new("people",format!("People: {}",talents.people)),
+        MenuItem::new("weapons",format!("Weapons: {}",talents.weapons)),
+    ])
+}
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app
             .add_event::<MenuEvent>()
             .add_event::<MenuItemEvent>()
+            .add_event::<CloseMenuEvent>()
             .insert_resource(Menus::default())
             .add_system(menu_start.system())
             //.on_state_enter(STAGE, GameState::Menu,show_main_menu.system())
             .on_state_update(STAGE, GameState::Menu,click_system.system())
             .on_state_update(STAGE, GameState::Menu,journal_event.system())
             .on_state_update(STAGE, GameState::Menu,inventory_event.system())
+            .on_state_update(STAGE, GameState::Menu,talents_event.system())
+            .on_state_update(STAGE, GameState::Menu,menu_close.system())
             .on_state_update(STAGE, GameState::Menu,close_menu.system())
         ;
     }
 }
 
 fn show_menu(
-    mut clearm: ResMut<Events<ClearMessage>>,
     mut queue: ResMut<Events<MessageEvent>>,
     menu: &Menu,
 ){
-    clearm.send(ClearMessage); 
+    //clearm.send(ClearMessage); 
     let mut msgs = vec![
         Message::new(&menu.title,MessageStyle::MenuTitle),
     ];
@@ -115,12 +129,11 @@ fn show_menu(
 }
 
 fn push_menu(
-    clearm: ResMut<Events<ClearMessage>>,
     queue: ResMut<Events<MessageEvent>>,
     mut menus: ResMut<Menus>,
     menu: Menu,
 ){
-    show_menu(clearm, queue, &menu);
+    show_menu(queue, &menu);
     menus.push(menu);
 }
 
@@ -157,7 +170,7 @@ fn click_system(
             if CLOSE==msg {
                 menus.pop();
                 if let Some( m) = menus.menus.last(){
-                    show_menu(clearm, queue, m);
+                    show_menu(queue, m);
                 } else {
                     clearm.send(ClearMessage); 
                     appstate.set_next(GameState::Running).unwrap();
@@ -180,7 +193,7 @@ fn close_menu(keyboard_input: Res<Input<KeyCode>>,
             println!("Escape");
             menus.pop();
             if let Some( m) = menus.menus.last(){
-                show_menu(clearm, queue, m);
+                show_menu(queue, m);
             } else {
                 clearm.send(ClearMessage); 
                 appstate.set_next(GameState::Running).unwrap();
@@ -200,16 +213,31 @@ impl MenuEvent {
     }
 }
 
+#[derive(Debug,Clone)]
+pub struct CloseMenuEvent;
+
 fn menu_start(    
     mut appstate: ResMut<State<GameState>>,
     mut event_reader: EventReader<MenuEvent>,
-    clearm: ResMut<Events<ClearMessage>>,
     queue: ResMut<Events<MessageEvent>>,
-    menus: ResMut<Menus>,
+    mut menus: ResMut<Menus>,
 ){
     if let Some(me) = event_reader.iter().next() {
         appstate.set_next(GameState::Menu).unwrap();
-        push_menu(clearm, queue, menus,me.menu.clone());
+        menus.clear();
+        push_menu( queue, menus, me.menu.clone());
+    }
+}
+
+fn menu_close(    
+    mut appstate: ResMut<State<GameState>>,
+    mut event_reader: EventReader<CloseMenuEvent>,
+    mut menus: ResMut<Menus>,
+){
+    if let Some(_me) = event_reader.iter().next() {
+        appstate.set_next(GameState::Running).unwrap();
+        menus.clear();
+        //clearm.send(ClearMessage);
     }
 }
 
@@ -223,11 +251,10 @@ fn journal_event(
     mut event_reader: EventReader<MenuItemEvent>,
     journal: Res<Journal>,
     menus: ResMut<Menus>,
-    clearm: ResMut<Events<ClearMessage>>,
     queue: ResMut<Events<MessageEvent>>,) {
         if let Some(_e) = event_reader.iter().filter(|e| e.menu==MAIN && e.item==JOURNAL).next() {
             let m=journal_menu(&journal);
-            push_menu(clearm, queue, menus,m);
+            push_menu( queue, menus,m);
         }
 }
 
@@ -236,10 +263,20 @@ fn inventory_event(
     mut event_reader: EventReader<MenuItemEvent>,
     inventory: Res<Inventory>,
     menus: ResMut<Menus>,
-    clearm: ResMut<Events<ClearMessage>>,
     queue: ResMut<Events<MessageEvent>>,) {
         if let Some(_e) = event_reader.iter().filter(|e| e.menu==MAIN && e.item==INVENTORY).next() {
             let m=inventory_menu(&inventory);
-            push_menu(clearm, queue, menus,m);
+            push_menu( queue, menus,m);
+        }
+}
+
+fn talents_event(    
+    mut event_reader: EventReader<MenuItemEvent>,
+    talents: Res<Talents>,
+    menus: ResMut<Menus>,
+    queue: ResMut<Events<MessageEvent>>,) {
+        if let Some(_e) = event_reader.iter().filter(|e| e.menu==MAIN && e.item==TALENTS).next() {
+            let m=talents_menu(&talents);
+            push_menu( queue, menus,m);
         }
 }

@@ -282,3 +282,31 @@ pub fn sprite_position(x: i32, y: i32) -> Position {
 pub fn sprite_dimensions(x1: i32, y1: i32, x2: i32, y2: i32) -> Dimension {
     Dimension::new(Position::new(x1*SPRITE_SIZE-SPRITE_SIZE/2, y1*SPRITE_SIZE-SPRITE_SIZE/2),Position::new(x2*SPRITE_SIZE+SPRITE_SIZE/2, y2*SPRITE_SIZE+SPRITE_SIZE/2))
 }
+
+#[derive(Debug,Clone, Default)]
+pub struct Talents{
+    pub animals: u32,
+    pub people: u32,
+    pub weapons: u32,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct QuestFlags{
+    flags: HashSet<(String,String)>,
+}
+
+impl QuestFlags {
+    pub fn set_flag<'a, S1: Into<String>, S2: Into<String>>(&'a mut self, quest: S1, flag: S2) -> &'a mut Self {
+        self.flags.insert((quest.into(),flag.into()));
+        self
+    }
+
+    pub fn unset_flag<'a, S1: Into<String>, S2: Into<String>>(&'a mut self, quest: S1, flag: S2) -> &'a mut Self {
+        self.flags.remove(&(quest.into(),flag.into()));
+        self
+    }
+
+    pub fn has_flag<S1: Into<String>, S2: Into<String>>(&self, quest: S1, flag: S2) -> bool {
+        self.flags.contains(&(quest.into(),flag.into()))
+    }
+}

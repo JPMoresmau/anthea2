@@ -23,6 +23,9 @@ const FOUNTAIN: &str= "fountain";
 const SCISSORS: &str= "scissors";
 const CUT: &str= "cut";
 
+const HAIR_CUT: &str= "hair_cut";
+const HAIR_CUT_SELF: &str= "hair_cut_self";
+
 fn castle_area() -> Area {
     let mut stage = Area::new("Selaion Palace",0, sprite_position(-7,4));
     let bedroom = Room::new("bedroom", "Your bedroom",6,3,9,6);
@@ -60,18 +63,22 @@ fn castle_area() -> Area {
 }
 
 fn affordance_mirror(
-    commands: &mut Commands,
-    player_query: Query<(Entity, &Player)>,
+    flags: Res<QuestFlags>,
     mut event_reader: EventReader<AffordanceEvent>,
     mut queue: ResMut<Events<MessageEvent>>,
 ){
     for _e in event_reader.iter().filter(|e| e.0==MIRROR) {
-        queue.send(MessageEvent::new("You look at yourself in the mirror", MessageStyle::Info));
+        if flags.has_flag(QUEST_MAIN,HAIR_CUT) {
+            queue.send(MessageEvent::new("Your look at yourself and your short hair...", MessageStyle::Info));
+        } else {
+            queue.send(MessageEvent::new("You look at yourself in the mirror", MessageStyle::Info));
+        }
     }
 }
 
 fn affordance_fountain(
     inventory: Res<Inventory>,
+    flags: Res<QuestFlags>,
     mut event_reader: EventReader<AffordanceEvent>,
     mut queue: ResMut<Events<MessageEvent>>,
     mut menu: ResMut<Events<MenuEvent>>,
@@ -81,6 +88,8 @@ fn affordance_fountain(
             let mi=MenuItem::new(CUT,"Cut your hair with the scissors, using the fountain as a mirror");
             let m=Menu::new(FOUNTAIN, "Fountain", vec![mi]);
             menu.send(MenuEvent::new(m));
+        } else if flags.has_flag(QUEST_MAIN,HAIR_CUT) {
+            queue.send(MessageEvent::new("Your reflection in the water looks like a grinning boy...", MessageStyle::Info));
         } else {
             queue.send(MessageEvent::new("The water is refreshing.", MessageStyle::Info));
         }
@@ -90,8 +99,21 @@ fn affordance_fountain(
 fn action_fountain(
     mut event_reader: EventReader<MenuItemEvent>,
     mut inventory: ResMut<Inventory>,
+    mut talents: ResMut<Talents>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut journal: ResMut<Journal>,
+    mut flags: ResMut<QuestFlags>,
+    mut close_menu: ResMut<Events<CloseMenuEvent>>,
+
 ){
     if let Some(_e) = event_reader.iter().filter(|e| e.menu==FOUNTAIN && e.item==CUT).next() {
         inventory.remove_item(SCISSORS);
+        talents.people+=1;
+        close_menu.send(CloseMenuEvent);
+        journal.add_entry(JournalEntry::new(QUEST_MAIN,"I cut my hair short using the fountain as a mirror. Not sure I did a great job."));
+        flags.set_flag(QUEST_MAIN,HAIR_CUT);
+        flags.set_flag(QUEST_MAIN,HAIR_CUT_SELF);
+        queue.send(MessageEvent::new("You feel you've made a mess, but you cut your hair short.", MessageStyle::Info));
+        
     }
 }

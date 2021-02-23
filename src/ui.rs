@@ -210,8 +210,14 @@ fn message_system(
     commands: &mut Commands,
     mut event_reader: EventReader<MessageEvent>,
     mut text_query: Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
-    mut style_query: Query<&mut Style,Without<Text>>){
-        for me in event_reader.iter() {
+    mut style_query: Query<&mut Style,Without<Text>>,
+    bg_query: Query<(&Background, &mut Visible)>,
+    part_query: Query<(&MessageFramePart, &mut Visible)>,
+    menu_query: Query<Entity,With<InteractionItem>>,
+    ){
+        if let Some(me) = event_reader.iter().next() {
+            clear(commands,bg_query,part_query,&mut text_query,menu_query);
+
             for ( _mt, mut text, mut style, parent) in &mut text_query.iter_mut() {
                 let mut ps = style_query.get_mut(parent.0).unwrap();
                 ps.justify_content=JustifyContent::Center;
@@ -283,13 +289,14 @@ fn message_decoration_system(
 ){
     for (t,cs,ttr) in text_query.iter(){
         if t.sections.len()>0 && t.sections[0].value.len()>0{
+            // println!("CalculatedSize: {:?}",cs);
             let mut max_w:f32=0.0;
             let mut add_y = 0.0;
             for (_t,cs,_tr) in item_query.iter(){
                 max_w=max_w.max(cs.size.width);
                 add_y+=cs.size.height+10.0;
             }
-
+            // println!("CalculatedSize.add_y: {:?}",add_y);
             //println!("text transform: {:?}",ttr.translation);
             let w = max_w.max(cs.size.width)+20.0;
             let h = cs.size.height+20.0+add_y;
@@ -302,6 +309,7 @@ fn message_decoration_system(
                 tr.translation.x=ttr.translation.x;
                 tr.translation.y=ttr.translation.y+add_y/2.0;
                 tr.translation.z=z;
+                println!("Background scale: {:?}",tr.scale);
             }
             z = 0.6;
             //ttr.translation.z=z+1.0;
@@ -366,24 +374,33 @@ fn message_decoration_system(
 fn message_clear_system(    
     commands: &mut Commands,
     mut event_reader: EventReader<ClearMessage>,
+    bg_query: Query<(&Background, &mut Visible)>,
+    part_query: Query<(&MessageFramePart, &mut Visible)>,
+    mut text_query: Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
+    menu_query: Query<Entity,With<InteractionItem>>,
+    ){
+        if let Some(_ev) = event_reader.iter().next() {
+            //println!("clear");
+           clear(commands,bg_query,part_query,&mut text_query,menu_query);
+        }
+}
+
+fn clear(commands: &mut Commands,
     mut bg_query: Query<(&Background, &mut Visible)>,
     mut part_query: Query<(&MessageFramePart, &mut Visible)>,
-    mut text_query: Query<(&MessageText, &mut Text)>,
+    text_query: &mut Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
     mut menu_query: Query<Entity,With<InteractionItem>>,
-    ){
-        for _ev in event_reader.iter() {
-            //println!("clear");
-            for (_b,mut v) in bg_query.iter_mut() {
-                v.is_visible=false;
-            }
-            for (_p, mut v) in part_query.iter_mut() {
-                v.is_visible=false;
-            }
-            for (_p, mut t) in text_query.iter_mut() {
-                t.sections.clear()
-            }
-            for e in menu_query.iter_mut() {
-                commands.despawn_recursive(e);
-            }
-        }
+){
+    for (_b,mut v) in bg_query.iter_mut() {
+        v.is_visible=false;
+    }
+    for (_p, mut v) in part_query.iter_mut() {
+        v.is_visible=false;
+    }
+    for (_m, mut t,_s, _p) in text_query.iter_mut() {
+        t.sections.clear()
+    }
+    for e in menu_query.iter_mut() {
+        commands.despawn_recursive(e);
+    }
 }
