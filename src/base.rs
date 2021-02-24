@@ -31,6 +31,7 @@ pub struct AntheaHandles {
     pub ui_handle: Handle<Texture>,
     pub paper_handle: Handle<Texture>,
     pub font_handle: Handle<Font>,
+    pub ui_texture_atlas_handle: Handle<TextureAtlas>,
 }
 
 

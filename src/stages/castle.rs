@@ -113,7 +113,7 @@ fn action_fountain(
         journal.add_entry(JournalEntry::new(QUEST_MAIN,"I cut my hair short using the fountain as a mirror. Not sure I did a great job."));
         flags.set_flag(QUEST_MAIN,HAIR_CUT);
         flags.set_flag(QUEST_MAIN,HAIR_CUT_SELF);
-        queue.send(MessageEvent::new("You feel you've made a mess, but you cut your hair short.", MessageStyle::Info));
+        queue.send(MessageEvent::new("You feel you've made a mess, but you cut your hair short (People +1).", MessageStyle::Info));
         
     }
 }

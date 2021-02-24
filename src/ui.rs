@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, ui::FocusPolicy};
 use bevy::text::CalculatedSize;
 
 use strum::IntoEnumIterator;
@@ -8,13 +8,26 @@ use crate::base::*;
 
 pub struct UIPlugin;
 
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, StageLabel)]
+pub struct AfterPostUpdate;
+
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app
             .add_event::<ClearMessage>()
             .add_event::<MessageEvent>()
             .add_system(message_system.system())
-            .add_system_to_stage(CoreStage::PostUpdate, message_decoration_system.system())
+            .add_stage_after(
+                CoreStage::PostUpdate,
+                AfterPostUpdate,
+                SystemStage::parallel(),
+            )
+            .add_system_to_stage(
+                AfterPostUpdate,
+                message_decoration_system.system(),
+            )
+            //.add_system_to_stage(CoreStage::PostUpdate, message_decoration_system.system())
             //.add_system(message_decoration_system.system())
             .add_system_to_stage(CoreStage::PreUpdate, message_clear_system.system())
             //.add_system(message_clear_system.system())
@@ -27,6 +40,7 @@ pub enum MessageStyle {
     MenuTitle,
     Info,
     Interaction(String),
+    Navigation(bool,bool),
     Help,
 }
 
@@ -73,6 +87,13 @@ pub enum MessageFramePart {
     BottomRight,
 }
 
+
+#[derive(Debug,Clone,Copy,PartialEq, Eq, PartialOrd, Ord, EnumIter)]
+pub enum NavigationPart {
+    Back,
+    Forward,
+}
+
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Background;
 
@@ -86,6 +107,7 @@ pub struct InteractionItem(pub String);
 
 
 const DIMENSIONS: &[((f32,f32),(f32,f32))]= &[
+    // borders
     ((857.0,192.0),(879.0,212.0)),
     ((893.0,192.0),(965.0,212.0)),
     ((978.0,192.0),(1000.0,212.0)),
@@ -94,10 +116,16 @@ const DIMENSIONS: &[((f32,f32),(f32,f32))]= &[
     ((857.0,293.0),(879.0,316.0)),
     ((893.0,293.0),(965.0,316.0)),
     ((978.0,293.0),(1000.0,316.0)),
+
+    // navigations
+    ((560.0,122.0),(590.0,152.0)),
+    ((598.0,122.0),(628.0,152.0)),
+    ((560.0,174.0),(590.0,204.0)),
+    ((598.0,174.0),(628.0,204.0)),
 ];
 
 pub fn setup_ui( commands: &mut Commands,
-    handles: Res<AntheaHandles>,
+    mut handles: ResMut<AntheaHandles>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut queue: ResMut<Events<MessageEvent>>,
@@ -111,7 +139,7 @@ pub fn setup_ui( commands: &mut Commands,
     }
 
     let texture_atlas_handle = texture_atlases.add(atlas);
-
+    handles.ui_texture_atlas_handle=texture_atlas_handle.clone();
     for (i,part) in MessageFramePart::iter().enumerate(){
         spawn_frame(commands, texture_atlas_handle.clone(), part, i);
     }
@@ -186,6 +214,21 @@ fn spawn_frame(commands: &mut Commands,
    
 }
 
+/*fn spawn_navigation(commands: &mut Commands,
+    texture_atlas_handle: Handle<TextureAtlas>,
+    part: NavigationPart,
+    tile_index: usize,
+){
+    commands.spawn(SpriteSheetBundle {
+        sprite: TextureAtlasSprite::new(tile_index as u32),
+        texture_atlas: texture_atlas_handle,
+        visible: Visible{is_transparent:true,is_visible:false},
+        ..Default::default()
+    })
+    .with(part);
+   
+}*/
+
 fn build_section(msg: &Message, font: Handle<Font>, sep: &str) -> TextSection {
     let font_size = match msg.style {
         MessageStyle::Title=> 72.0,
@@ -197,10 +240,10 @@ fn build_section(msg: &Message, font: Handle<Font>, sep: &str) -> TextSection {
         font,
         font_size,
         color: Color::BLACK,
-    }; 
-
+    };
+    let txt= format!("{}{}",sep,msg.contents);
     TextSection {
-        value: format!("{}{}",sep,msg.contents),
+        value: txt,
         style,
     }
 }
@@ -213,10 +256,11 @@ fn message_system(
     mut style_query: Query<&mut Style,Without<Text>>,
     bg_query: Query<(&Background, &mut Visible)>,
     part_query: Query<(&MessageFramePart, &mut Visible)>,
+    nav_query: Query<(&Draw, &CalculatedSize, &Transform,&Parent),With<NavigationPart>>,
     menu_query: Query<Entity,With<InteractionItem>>,
     ){
         if let Some(me) = event_reader.iter().next() {
-            clear(commands,bg_query,part_query,&mut text_query,menu_query);
+            clear(commands,bg_query,part_query,&mut text_query,nav_query, menu_query);
 
             for ( _mt, mut text, mut style, parent) in &mut text_query.iter_mut() {
                 let mut ps = style_query.get_mut(parent.0).unwrap();
@@ -225,20 +269,26 @@ fn message_system(
                 let mut sep=String::new();
                 text.sections.clear();
                 let mut interactions=vec![];
+                let mut navigations=None;
                 for msg in me.messages.iter(){
                     //println!("Message: {:?}",msg);
-                    let ts=build_section(&msg,handles.font_handle.clone(),&sep);
-                    if let MessageStyle::Interaction(code) = &msg.style {
-                        interactions.push((ts,code));
+                   
+                    if let MessageStyle::Navigation(backward,forward) = &msg.style {
+                        navigations=Some((backward,forward));
                     } else {
-                        text.sections.push(ts);
-                        if msg.style==MessageStyle::Info {
-                        //    style.align_self= AlignSelf::FlexStart;
-                           
-                            ps.justify_content=JustifyContent::FlexEnd;
-                        }
-                        if sep.is_empty(){
-                            sep="\n".into();
+                        let ts=build_section(&msg,handles.font_handle.clone(),&sep);
+                        if let MessageStyle::Interaction(code) = &msg.style {
+                            interactions.push((ts,code));
+                        } else {
+                            text.sections.push(ts);
+                            if msg.style==MessageStyle::Info {
+                            //    style.align_self= AlignSelf::FlexStart;
+                            
+                                ps.justify_content=JustifyContent::FlexEnd;
+                            }
+                            if sep.is_empty(){
+                                sep="\n".into();
+                            }
                         }
                     }
                 }
@@ -246,6 +296,58 @@ fn message_system(
                     commands.set_current_entity(parent.0);
                     
                     commands.with_children(|parent| {
+                        if let Some((backward,forward))=navigations {
+                            let l=MessageFramePart::iter().len();
+                            let btile=if *backward {
+                                l
+                            } else {
+                                l+2
+                            };
+                            let ftile=if *forward {
+                                l+1
+                            } else {
+                                l+3
+                            };
+                            parent.spawn(NodeBundle{
+                                style:Style {
+                                    size: Size::new(Val::Px(100.0), Val::Px(30.0)),
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    ..Default::default()
+                                },
+                                visible: Visible{is_visible:false, is_transparent:true},
+                                ..Default::default()
+                            }).with_children(|np| {
+                                np.spawn(SpriteSheetBundle {
+                                    sprite: TextureAtlasSprite::new(btile as u32),
+                                    texture_atlas: handles.ui_texture_atlas_handle.clone(),
+                                    ..Default::default()
+                                })
+                                .with(Style::default())
+                                .with(CalculatedSize{size:Size::new(30.0, 30.0)})
+                                .with(Node::default())
+                                .with(NavigationPart::Back);
+                                if *backward {
+                                    np
+                                        .with(FocusPolicy::Block)
+                                        .with(Interaction::None);
+                                }
+                                np.spawn(SpriteSheetBundle {
+                                    sprite: TextureAtlasSprite::new(ftile as u32),
+                                    texture_atlas: handles.ui_texture_atlas_handle.clone(),
+                                    ..Default::default()
+                                })
+                                .with(Style::default())
+                                    .with(CalculatedSize{size:Size::new(30.0, 30.0)})
+                                    .with(Node::default())
+                                    .with(NavigationPart::Forward);
+                                if *forward {
+                                    np
+                                        .with(FocusPolicy::Block)
+                                        .with(Interaction::None);
+                                }
+                            });
+
+                        }
                         for (ts,code) in interactions.into_iter(){
                             parent.spawn(TextBundle { 
                                 style: Style {
@@ -284,8 +386,9 @@ fn message_system(
 fn message_decoration_system(
     text_query: Query<(&Text, &CalculatedSize, &Transform),Mutated<CalculatedSize>>,
     item_query: Query<(&Text, &CalculatedSize, &Transform),With<InteractionItem>>,
-    mut bg_query: Query<(&Background, &mut Visible, &mut Transform)>,
-    mut part_query: Query<(&MessageFramePart, &mut Visible, &mut Transform)>
+    nav_query: Query<(&Draw, &CalculatedSize, &Transform,),With<NavigationPart>>,
+    mut bg_query: Query<(&Background, &mut Visible, &mut Transform, &mut GlobalTransform)>,
+    mut part_query: Query<(&MessageFramePart, &mut Visible, &mut Transform, &mut GlobalTransform)>
 ){
     for (t,cs,ttr) in text_query.iter(){
         if t.sections.len()>0 && t.sections[0].value.len()>0{
@@ -296,24 +399,28 @@ fn message_decoration_system(
                 max_w=max_w.max(cs.size.width);
                 add_y+=cs.size.height+10.0;
             }
+            for (_d,cs,_tr) in nav_query.iter().take(1){
+                add_y+=cs.size.height;
+            }
             // println!("CalculatedSize.add_y: {:?}",add_y);
             //println!("text transform: {:?}",ttr.translation);
             let w = max_w.max(cs.size.width)+20.0;
             let h = cs.size.height+20.0+add_y;
             
             let mut z = 0.5;
-            for (_b,mut v,mut tr) in bg_query.iter_mut(){
+            for (_b,mut v,mut tr, mut gtr) in bg_query.iter_mut(){
                 v.is_visible=true;
                 tr.scale.x=(w+20.0)/512.0;
                 tr.scale.y=(h+20.0)/512.0;
                 tr.translation.x=ttr.translation.x;
                 tr.translation.y=ttr.translation.y+add_y/2.0;
                 tr.translation.z=z;
-                println!("Background scale: {:?}",tr.scale);
+                gtr.scale=tr.scale;
+                gtr.translation=tr.translation;
             }
             z = 0.6;
             //ttr.translation.z=z+1.0;
-            for (fp,mut v,mut tr) in part_query.iter_mut(){
+            for (fp,mut v,mut tr, mut gtr) in part_query.iter_mut(){
                 v.is_visible=true;
                 
                 match fp {
@@ -365,6 +472,8 @@ fn message_decoration_system(
                 tr.translation.x+=ttr.translation.x;
                 tr.translation.y+=ttr.translation.y;
                 tr.translation.y+=add_y/2.0;
+                gtr.translation=tr.translation;
+                gtr.scale=tr.scale;
             }
         }
        
@@ -377,11 +486,12 @@ fn message_clear_system(
     bg_query: Query<(&Background, &mut Visible)>,
     part_query: Query<(&MessageFramePart, &mut Visible)>,
     mut text_query: Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
+    nav_query: Query<(&Draw, &CalculatedSize, &Transform,&Parent),With<NavigationPart>>,
     menu_query: Query<Entity,With<InteractionItem>>,
     ){
         if let Some(_ev) = event_reader.iter().next() {
             //println!("clear");
-           clear(commands,bg_query,part_query,&mut text_query,menu_query);
+           clear(commands,bg_query,part_query,&mut text_query,nav_query,menu_query);
         }
 }
 
@@ -389,6 +499,7 @@ fn clear(commands: &mut Commands,
     mut bg_query: Query<(&Background, &mut Visible)>,
     mut part_query: Query<(&MessageFramePart, &mut Visible)>,
     text_query: &mut Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
+    nav_query: Query<(&Draw, &CalculatedSize, &Transform,&Parent),With<NavigationPart>>,
     mut menu_query: Query<Entity,With<InteractionItem>>,
 ){
     for (_b,mut v) in bg_query.iter_mut() {
@@ -399,6 +510,9 @@ fn clear(commands: &mut Commands,
     }
     for (_m, mut t,_s, _p) in text_query.iter_mut() {
         t.sections.clear()
+    }
+    for (_m, _cs,_t, p) in nav_query.iter().take(1) {
+        commands.despawn_recursive(p.0);
     }
     for e in menu_query.iter_mut() {
         commands.despawn_recursive(e);

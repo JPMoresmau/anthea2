@@ -190,7 +190,7 @@ fn pickup_item(commands: &mut Commands,
     mut queue: ResMut<Events<MessageEvent>>,
     ){
         if let Some(i) = stage.remove_item_from_pos(&state.map_position.inverse_x()){
-            println!("Item: {}",i.name);
+            //println!("Item: {}",i.name);
             for (e,_i2) in item_query.iter().filter(|(_e,i2)| i.name==i2.name) {
                 commands.despawn_recursive(e);
             }

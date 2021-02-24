@@ -12,6 +12,7 @@ pub const TALENTS: &str = "talents";
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct Menus {
     menus: Vec<Menu>,
+    pub journal_index: Option<usize>,
 }
 
 impl Menus {
@@ -26,7 +27,12 @@ impl Menus {
 
     pub fn clear<'a>(&'a mut self) -> &'a mut Self  {
         self.menus.clear();
+        self.journal_index=None;
         self
+    }
+
+    pub fn current<'a>(&'a self) -> &'a String {
+        &self.menus.iter().last().unwrap().code
     }
 }
 
@@ -34,12 +40,13 @@ impl Menus {
 pub struct Menu {
     code: String,
     title: String,
+    navigation: Option<(bool,bool)>,
     items: Vec<MenuItem>,
 }
 
 impl Menu {
     pub fn new<S1: Into<String>, S2: Into<String>>(code:S1, title:S2,items: Vec<MenuItem>) -> Self{
-        Menu{code:code.into(),title:title.into(), items}
+        Menu{code:code.into(),title:title.into(), navigation:None, items}
     }
 
 }
@@ -72,10 +79,13 @@ pub fn main_menu() -> Menu {
     Menu::new(MAIN, "Anthea", vec![journal_item(), inventory_item(), talents_item()])
 }
 
-fn journal_menu(journal: &Journal) -> Menu {
-    let e=journal.entries.last().unwrap();
-
-    Menu::new(JOURNAL, "Journal",vec![MenuItem::new("",&e.text)])
+fn journal_menu(journal: &Journal, menus: &Menus) -> Menu {
+    let idx=menus.journal_index.unwrap_or(journal.entries.len()-1);
+    let e=journal.entries.get(idx).unwrap();
+    let mut m=Menu::new(JOURNAL, "Journal",vec![
+        MenuItem::new("",&e.text)]);
+    m.navigation=Some((idx>0,idx<journal.entries.len()-1));
+    m
 }
 
 
@@ -105,6 +115,7 @@ impl Plugin for MenuPlugin {
             .add_system(menu_start.system())
             //.on_state_enter(STAGE, GameState::Menu,show_main_menu.system())
             .on_state_update(STAGE, GameState::Menu,click_system.system())
+            .on_state_update(STAGE, GameState::Menu,click_nav_system.system())
             .on_state_update(STAGE, GameState::Menu,journal_event.system())
             .on_state_update(STAGE, GameState::Menu,inventory_event.system())
             .on_state_update(STAGE, GameState::Menu,talents_event.system())
@@ -122,6 +133,9 @@ fn show_menu(
     let mut msgs = vec![
         Message::new(&menu.title,MessageStyle::MenuTitle),
     ];
+    if let Some((backward,forward)) = menu.navigation {
+        msgs.push(Message::new("",MessageStyle::Navigation(backward,forward)));
+    }
     for mi in menu.items.iter(){
         msgs.push(Message::new(&mi.text,MessageStyle::Interaction(mi.code.clone())));
     }
@@ -179,6 +193,28 @@ fn click_system(
                 menuqueue.send(MenuItemEvent{menu:m.code.clone(),item:msg.into()});
             }
             
+        }
+    }
+}
+
+fn click_nav_system(
+    item_query: Query<(&Interaction,&TextureAtlasSprite,&NavigationPart),Mutated<Interaction>>,
+    mut menus: ResMut<Menus>,
+    queue: ResMut<Events<MessageEvent>>,
+    journal: Res<Journal>,
+){
+    if let Some((interaction, _txt, item)) = item_query.iter().next() {
+        if *interaction==Interaction::Clicked {
+            if menus.current()==JOURNAL{
+                let idx=menus.journal_index.unwrap_or(journal.entries.len()-1);
+                match item {
+                    NavigationPart::Back => menus.journal_index=Some(idx-1),
+                    NavigationPart::Forward => menus.journal_index=Some(idx+1),
+                }
+                menus.pop();
+                let m=journal_menu(&journal,&menus);
+                push_menu( queue, menus,m);
+            }
         }
     }
 }
@@ -253,7 +289,7 @@ fn journal_event(
     menus: ResMut<Menus>,
     queue: ResMut<Events<MessageEvent>>,) {
         if let Some(_e) = event_reader.iter().filter(|e| e.menu==MAIN && e.item==JOURNAL).next() {
-            let m=journal_menu(&journal);
+            let m=journal_menu(&journal,&menus);
             push_menu( queue, menus,m);
         }
 }
