@@ -15,7 +15,8 @@ impl Plugin for CastlePlugin {
             .add_system(action_fountain.system())
             .add_system(action_mirror.system())
             .add_system(character_peleus.system())
-            //.add_system(message_clear_system.system())
+            .add_system(character_nerita.system())
+            .add_system(action_nerita.system())
         ;
     }
 }
@@ -23,14 +24,17 @@ impl Plugin for CastlePlugin {
 const MIRROR: &str = "mirror";
 const FOUNTAIN: &str = "fountain";
 const SCISSORS: &str = "scissors";
+
 const CUT: &str = "cut";
+const FIX: &str = "fix";
 
 const HAIR_CUT: &str = "hair_cut";
 const HAIR_CUT_SELF: &str = "hair_cut_self";
 const PELEUS_FORBIDDEN: &str = "peleus_forbidden";
 const ALLOWED_TO_LEAVE: &str = "allowed_to_leave";
 
-const PELEUS: &str = "peleus";
+const PELEUS: &str = "Peleus";
+const NERITA: &str = "Nerita";
 
 fn castle_area() -> Area {
     let mut stage = Area::new("Selaion Palace", 0, sprite_position(-20, 4));
@@ -75,7 +79,8 @@ fn castle_area() -> Area {
 
 
     let peleus = Character::new(PELEUS,"Peleus, your brother", "sprites/people/peleus.png",19,2);
-    stage.add_character(peleus);
+    let nerita = Character::new(NERITA,"Nerita, your maid", "sprites/people/nerita.png",6,4);
+    stage.add_character(peleus).add_character(nerita);
 
     stage
 }
@@ -229,6 +234,89 @@ fn character_peleus(
             ));
             queue.send(MessageEvent::new(
                 "I am NOT going to let a girl go chasing a ghost.\nYour duty is to stay here and marry to strenghten my kingdom.",
+                MessageStyle::Info,
+            ));
+        }
+    }
+}
+
+
+fn character_nerita(
+    flags: Res<QuestFlags>,
+    inventory: Res<Inventory>,
+    mut event_reader: EventReader<CharacterEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut menu: ResMut<Events<MenuEvent>>,
+) {
+    for _e in event_reader.iter().filter(|e| e.0 == NERITA) {
+        if inventory.contains_item(SCISSORS) {
+            let mi = MenuItem::new(
+                CUT,
+                "You really want me to cut your hair with these scissors?",
+            );
+            let m = Menu::new(NERITA, "Nerita, your maid", vec![mi]);
+            menu.send(MenuEvent::new(m));
+        } else if flags.has_flag(QUEST_MAIN, HAIR_CUT){
+            if flags.has_flag(QUEST_MAIN, HAIR_CUT_SELF) {
+                let mi = MenuItem::new(
+                    FIX,
+                    "What have you done to your hair? Shall I fix it for you?",
+                );
+                let m = Menu::new(NERITA, "Nerita, your maid", vec![mi]);
+                menu.send(MenuEvent::new(m));
+            } else {
+                queue.send(MessageEvent::new(
+                    "You look like a boy now! A pretty boy!",
+                    MessageStyle::Info,
+                ));
+            }
+        } else {
+
+            queue.send(MessageEvent::new(
+                "You'll always be a little girl to me. Let me comb your hair!",
+                MessageStyle::Info,
+            ));
+        }
+    }
+}
+
+fn action_nerita(
+    mut event_reader: EventReader<MenuItemEvent>,
+    mut inventory: ResMut<Inventory>,
+    mut talents: ResMut<Talents>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut journal: ResMut<Journal>,
+    mut flags: ResMut<QuestFlags>,
+    mut close_menu: ResMut<Events<CloseMenuEvent>>,
+) {
+    if let Some(e) = event_reader
+        .iter()
+        .filter(|e| e.menu == NERITA)
+        .next()
+    {
+        if e.item==CUT {
+            inventory.remove_item(SCISSORS);
+            talents.people += 2;
+            close_menu.send(CloseMenuEvent);
+            journal.add_entry(JournalEntry::new(
+                QUEST_MAIN,
+                "Nerita cut my hair so I don't look too much like a girl now. I think it suits me.",
+            ));
+            flags.set_flag(QUEST_MAIN, HAIR_CUT);
+            queue.send(MessageEvent::new(
+                "Really a shame to cut such beautiful hair (People +2)!",
+                MessageStyle::Info,
+            ));
+        } else if e.item==FIX {
+            talents.people += 1;
+            close_menu.send(CloseMenuEvent);
+            journal.add_entry(JournalEntry::new(
+                QUEST_MAIN,
+                "Nerita fixed my hair so it doesn't look as bad as it used to.",
+            ));
+            flags.unset_flag(QUEST_MAIN, HAIR_CUT_SELF);
+            queue.send(MessageEvent::new(
+                "Now, you look a bit better now (People +1)!",
                 MessageStyle::Info,
             ));
         }
