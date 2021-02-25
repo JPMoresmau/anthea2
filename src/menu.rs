@@ -63,6 +63,7 @@ impl Menu {
 pub struct MenuItem {
     code: String,
     text: String,
+    extra: Option<String>,
 }
 
 impl MenuItem {
@@ -70,6 +71,15 @@ impl MenuItem {
         MenuItem {
             code: code.into(),
             text: text.into(),
+            extra: None,
+        }
+    }
+
+    pub fn new_table<S1: Into<String>, S2: Into<String>>(text: S1, extra: S2) -> Self {
+        MenuItem {
+            code: String::new(),
+            text: text.into(),
+            extra: Some(extra.into()),
         }
     }
 }
@@ -119,9 +129,9 @@ fn talents_menu(talents: &Talents) -> Menu {
         TALENTS,
         "Talents",
         vec![
-            MenuItem::new("", format!("Animals: {:>3}", talents.animals)),
-            MenuItem::new("", format!("People: {:>3}", talents.people)),
-            MenuItem::new("", format!("Weapons: {:>3}", talents.weapons)),
+            MenuItem::new_table("Animals:", format!("{:>3}", talents.animals)),
+            MenuItem::new_table("People:", format!("{:>3}", talents.people)),
+            MenuItem::new_table("Weapons:", format!("{:>3}", talents.weapons)),
         ],
     )
 }
@@ -154,10 +164,17 @@ fn show_menu(mut queue: ResMut<Events<MessageEvent>>, menu: &Menu) {
         ));
     }
     for mi in menu.items.iter() {
-        msgs.push(Message::new(
-            &mi.text,
-            MessageStyle::Interaction(mi.code.clone()),
-        ));
+        if let Some(extra) = &mi.extra{
+            msgs.push(Message::new(
+                &mi.text,
+                MessageStyle::Table(vec![extra.clone()]),
+            ));
+        } else {
+            msgs.push(Message::new(
+                &mi.text,
+                MessageStyle::Interaction(mi.code.clone()),
+            ));
+        }
     }
     queue.send(MessageEvent::new_multi(msgs));
 }
