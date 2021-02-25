@@ -14,6 +14,7 @@ impl Plugin for CastlePlugin {
             .add_system(affordance_fountain.system())
             .add_system(action_fountain.system())
             .add_system(action_mirror.system())
+            .add_system(character_peleus.system())
             //.add_system(message_clear_system.system())
         ;
     }
@@ -26,9 +27,13 @@ const CUT: &str = "cut";
 
 const HAIR_CUT: &str = "hair_cut";
 const HAIR_CUT_SELF: &str = "hair_cut_self";
+const PELEUS_FORBIDDEN: &str = "peleus_forbidden";
+const ALLOWED_TO_LEAVE: &str = "allowed_to_leave";
+
+const PELEUS: &str = "peleus";
 
 fn castle_area() -> Area {
-    let mut stage = Area::new("Selaion Palace", 0, sprite_position(-7, 4));
+    let mut stage = Area::new("Selaion Palace", 0, sprite_position(-20, 4));
     let bedroom = Room::new("bedroom", "Your bedroom", 6, 3, 9, 6);
     let throne = Room::new("throne", "Selaion throne room", 11, 2, 26, 6);
     let garden =
@@ -67,6 +72,11 @@ fn castle_area() -> Area {
         12,
     );
     stage.add_item(scissors);
+
+
+    let peleus = Character::new(PELEUS,"Peleus, your brother", "sprites/people/peleus.png",19,2);
+    stage.add_character(peleus);
+
     stage
 }
 
@@ -181,5 +191,46 @@ fn action_mirror(
             "You carefully cut your hair short (People +2).",
             MessageStyle::Info,
         ));
+    }
+}
+
+fn character_peleus(
+    mut flags: ResMut<QuestFlags>,
+    mut event_reader: EventReader<CharacterEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut journal: ResMut<Journal>,
+) {
+    for _e in event_reader.iter().filter(|e| e.0 == PELEUS) {
+        if flags.has_flag(QUEST_MAIN, HAIR_CUT){
+            if flags.has_flag(QUEST_MAIN, ALLOWED_TO_LEAVE){
+                queue.send(MessageEvent::new(
+                    "You haven't left yet?",
+                    MessageStyle::Info,
+                ));
+            } else {
+                flags.set_flag(QUEST_MAIN, ALLOWED_TO_LEAVE);
+                queue.send(MessageEvent::new(
+                    "I see you're determined enough get rid of the hair you were so proud of.\nAllright, I will give orders that you're allowed to leave.",
+                    MessageStyle::Info,
+                ));
+                
+                journal.add_entry(JournalEntry::new(QUEST_MAIN,"Peleus has allowed me to leave on my quest for Father!"));
+            }
+        } else if flags.has_flag(QUEST_MAIN, PELEUS_FORBIDDEN) {
+            queue.send(MessageEvent::new(
+                "Once again, I am NOT going to let a girl go chasing a ghost.\nYour duty is to stay here and marry to strenghten my kingdom.\nDon't insist!",
+                MessageStyle::Info,
+            ));
+        } else {
+            flags.set_flag(QUEST_MAIN, PELEUS_FORBIDDEN);
+            journal.add_entry(JournalEntry::new(
+                QUEST_MAIN,
+                "Peleus forbids me to leave. He'll see!",
+            ));
+            queue.send(MessageEvent::new(
+                "I am NOT going to let a girl go chasing a ghost.\nYour duty is to stay here and marry to strenghten my kingdom.",
+                MessageStyle::Info,
+            ));
+        }
     }
 }

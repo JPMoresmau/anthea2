@@ -56,6 +56,7 @@ impl Plugin for AntheaPlugin {
             .insert_resource(Talents::default())
             .insert_resource(QuestFlags::default())
             .add_event::<AffordanceEvent>()
+            .add_event::<CharacterEvent>()
             .add_plugin(CastlePlugin)
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
@@ -120,10 +121,10 @@ fn player_movement_system(
     time: Res<Time>,
     mut state: ResMut<AntheaState>,
     stage: ResMut<Area>,
-    mut sprite_query: Query<(&mut Transform, &mut Visible),Or<(With<MapTile>,With<Item>)>>,
+    mut sprite_query: Query<(&mut Transform, &mut Visible),Or<(With<MapTile>,With<Item>,With<Character>)>>,
     mut msg: ResMut<Events<ClearMessage>>,
     mut ev_affordance: ResMut<Events<AffordanceEvent>>,
-
+    mut ev_character: ResMut<Events<CharacterEvent>>,
 ){
     state.last_move+=time.delta().as_millis();
     if state.last_move<MOVE_DELAY{
@@ -158,6 +159,9 @@ fn player_movement_system(
             if let Some(a) = stage.affordance_from_coords(rel_x,rel_y){
                 // println!("Affordance: {}",a.name);
                 ev_affordance.send(AffordanceEvent(a.name.clone()));
+            } else if let Some(c) = stage.character_from_coords(rel_x,rel_y){
+                // println!("Character: {}",c.name);
+                ev_character.send(CharacterEvent(c.name.clone()));
             } else {
 
                 let dif_x = (new_pos.x-state.map_position.x) as f32;
@@ -239,7 +243,7 @@ fn start_system(mouse_button_input: Res<Input<MouseButton>>,
     mut clearm: ResMut<Events<ClearMessage>>,
     mut appstate: ResMut<State<GameState>>,
     mut state: ResMut<AntheaState>,
-    mut sprite_query: Query<(&Transform, &mut Visible),Or<(With<MapTile>,With<Item>)>>,
+    mut sprite_query: Query<(&Transform, &mut Visible),Or<(With<MapTile>,With<Item>,With<Character>)>>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
         clearm.send(ClearMessage); 
@@ -291,6 +295,8 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
                     Message::new("Inventory",MessageStyle::Interaction),
                     Message::new("Talents",MessageStyle::Interaction),
                 ]));*/
+            } else if let Some(c) = stage.character_from_coords(rel_x,rel_y){
+                queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
             } else if let Some(a) = stage.affordance_from_coords(rel_x,rel_y){
                 queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
             } else if let Some(i) = stage.item_from_coords(rel_x,rel_y){

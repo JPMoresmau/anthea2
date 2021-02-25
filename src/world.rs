@@ -9,12 +9,13 @@ pub struct Area {
     pub rooms: HashMap<String, Room>,
     pub affordances: HashMap<String, Affordance>,
     pub items: HashMap<String, Item>,
+    pub characters: HashMap<String, Character>,
 }
 
 
 impl Area {
     pub fn new<S: Into<String>>(name: S, map_index: usize, start: Position) -> Self {
-        Self{name:name.into(),map_index,start,rooms:HashMap::new(),affordances:HashMap::new(),items:HashMap::new()}
+        Self{name:name.into(),map_index,start,rooms:HashMap::new(),affordances:HashMap::new(),items:HashMap::new(),characters:HashMap::new()}
     }
 
     pub fn add_room<'a>(&'a mut self, room: Room) -> &'a mut Self {
@@ -41,6 +42,19 @@ impl Area {
 
     pub fn affordance_from_coords<'a>(&'a self, x: f32, y:f32) -> Option<&'a Affordance> {
         self.affordance_from_position(&Position::new(x as i32, y as i32))
+    }
+
+    pub fn add_character<'a>(&'a mut self, chr: Character) -> &'a mut Self {
+        self.characters.insert(chr.name.clone(),chr);
+        self
+    }
+
+    pub fn character_from_position<'a>(&'a self, pos: &Position) -> Option<&'a Character> {
+        self.characters.values().filter(|r| r.dimension.contains(pos)).next()
+    }
+
+    pub fn character_from_coords<'a>(&'a self, x: f32, y:f32) -> Option<&'a Character> {
+        self.character_from_position(&Position::new(x as i32, y as i32))
     }
 
     pub fn add_item<'a>(&'a mut self, item: Item) -> &'a mut Self {
@@ -111,5 +125,22 @@ pub struct AffordanceEvent(pub String);
 #[derive(Debug,Clone)]
 pub struct ItemEvent(pub String);
 
+#[derive(Debug,Clone)]
+pub struct Character {
+    pub name: String,
+    pub description: String,
+    pub sprite: String,
+    pub position: Position,
+    pub dimension: Dimension,
+}
 
 
+impl Character {
+    pub fn new<S1: Into<String>,S2: Into<String>,S3: Into<String>>(name: S1, description: S2,sprite: S3, x1: i32, y1: i32) -> Self {
+        Self{name: name.into(),description:description.into(),sprite:sprite.into(),position: sprite_position(x1, y1),dimension: sprite_dimensions(x1, y1,x1,y1)}
+    }
+
+}
+
+#[derive(Debug,Clone)]
+pub struct CharacterEvent(pub String);

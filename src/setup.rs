@@ -101,7 +101,7 @@ pub fn setup_items(commands: &mut Commands,
         let item_handle = asset_server.get_handle(item.sprite.as_str());
         let item_index = texture_atlas.get_texture_index(&item_handle).unwrap();
         let pos=Position{x:state.map_position.x+item.position.x,y:state.map_position.y-item.position.y}.to_vec3_z(0.3);
-        let vis= is_visible(&pos,None);
+        let vis= false;//is_visible(&pos,None);
         commands.spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(item_index as u32),
             texture_atlas: atlas_handle.clone(),
@@ -117,6 +117,8 @@ pub fn setup_items(commands: &mut Commands,
 pub fn setup_people( commands: &mut Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
+    stage: Res<Area>,
+    state: Res<AntheaState>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
 ){
@@ -140,6 +142,7 @@ pub fn setup_people( commands: &mut Commands,
 
     let top_handle = asset_server.get_handle("sprites/people/shirt_white1.png");
     let top_index = texture_atlas.get_texture_index(&top_handle).unwrap();
+
 
     let atlas_handle = texture_atlases.add(texture_atlas);
 
@@ -178,7 +181,21 @@ pub fn setup_people( commands: &mut Commands,
                 .with(PlayerPart{part:Part::HAIR});
             })
         ;
-        
+        let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();   
+        for chr in stage.characters.values(){
+            let chr_handle = asset_server.get_handle(chr.sprite.as_str());
+            let chr_index = texture_atlas.get_texture_index(&chr_handle).unwrap();
+            let pos=Position{x:state.map_position.x+chr.position.x,y:state.map_position.y-chr.position.y}.to_vec3_z(0.3);
+            let vis= false;//is_visible(&pos,None);
+            commands.spawn(SpriteSheetBundle {
+                sprite: TextureAtlasSprite::new(chr_index as u32),
+                texture_atlas: atlas_handle.clone(),
+                transform: Transform::from_translation(pos),
+                visible: Visible{is_transparent:true,is_visible:vis},
+                ..Default::default()
+            })
+            .with(chr.clone());
+        }
 }
 
 pub fn is_visible(pos: &Vec3, ostate: Option<&AntheaState>) -> bool {
