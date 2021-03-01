@@ -17,6 +17,7 @@ impl Plugin for CastlePlugin {
             .add_system(character_peleus.system())
             .add_system(character_nerita.system())
             .add_system(action_nerita.system())
+            .add_system(character_cretien.system())
         ;
     }
 }
@@ -24,6 +25,8 @@ impl Plugin for CastlePlugin {
 const MIRROR: &str = "mirror";
 const FOUNTAIN: &str = "fountain";
 const SCISSORS: &str = "scissors";
+const SCROLL: &str = "scroll";
+
 
 const CUT: &str = "cut";
 const FIX: &str = "fix";
@@ -35,6 +38,9 @@ const ALLOWED_TO_LEAVE: &str = "allowed_to_leave";
 
 const PELEUS: &str = "Peleus";
 const NERITA: &str = "Nerita";
+const CRETIEN: &str = "Cretien";
+
+const CAT: &str = "cat";
 
 fn castle_area() -> Area {
     let mut stage = Area::new("Selaion Palace", 0, sprite_position(-20, 4));
@@ -76,11 +82,20 @@ fn castle_area() -> Area {
         12,
     );
     stage.add_item(scissors);
-
+    let scroll = Item::new(
+        SCROLL,
+        "Undecipherable scroll",
+        "sprites/items/scroll-brown.png",
+        4,
+        20,
+    );
+    stage.add_item(scroll);
 
     let peleus = Character::new(PELEUS,"Peleus, your brother", "sprites/people/peleus.png",19,2);
     let nerita = Character::new(NERITA,"Nerita, your maid", "sprites/people/nerita.png",6,4);
-    stage.add_character(peleus).add_character(nerita);
+    let cretien = Character::new(CRETIEN,"Cretien, your old teacher", "sprites/people/cretien.png",30,5);
+    
+    stage.add_character(peleus).add_character(nerita).add_character(cretien);
 
     stage
 }
@@ -317,6 +332,30 @@ fn action_nerita(
             flags.unset_flag(QUEST_MAIN, HAIR_CUT_SELF);
             queue.send(MessageEvent::new(
                 "Now, you look a bit better now (People +1)!",
+                MessageStyle::Info,
+            ));
+        }
+    }
+}
+
+fn character_cretien(
+    mut event_reader: EventReader<CharacterEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut inventory: ResMut<Inventory>,
+    mut spells: ResMut<Spells>,
+) {
+    for _e in event_reader.iter().filter(|e| e.0 == CRETIEN) {
+        if inventory.contains_item(SCROLL) {
+            queue.send(MessageEvent::new(
+                "Ooohh, this scroll is a magic spell! Let me see if I can teach you the incantation...",
+                MessageStyle::Info,
+            ));
+            inventory.remove_item(SCROLL);
+            let spell=Spell::new(CAT,"Create the illusion of a cat!");
+            spells.add_spell(spell);
+        } else {
+            queue.send(MessageEvent::new(
+                "I'm always on the lookout for new knowledge!",
                 MessageStyle::Info,
             ));
         }

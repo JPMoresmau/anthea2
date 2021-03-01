@@ -8,6 +8,7 @@ pub const MAIN: &str = "main";
 pub const JOURNAL: &str = "journal";
 pub const INVENTORY: &str = "inventory";
 pub const TALENTS: &str = "talents";
+pub const SPELLS: &str = "spells";
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct Menus {
@@ -96,11 +97,16 @@ fn talents_item() -> MenuItem {
     MenuItem::new(TALENTS, "Talents")
 }
 
+fn spells_item() -> MenuItem {
+    MenuItem::new(SPELLS, "Spells")
+}
+
+
 pub fn main_menu() -> Menu {
     Menu::new(
         MAIN,
         "Anthea",
-        vec![journal_item(), inventory_item(), talents_item()],
+        vec![journal_item(), inventory_item(), spells_item(), talents_item()],
     )
 }
 
@@ -136,6 +142,18 @@ fn talents_menu(talents: &Talents) -> Menu {
     )
 }
 
+fn spells_menu(spells: &Spells) -> Menu {
+    let mut msgs: Vec<MenuItem> = spells
+        .spells
+        .iter()
+        .map(|i| MenuItem::new("", &i.description))
+        .collect();
+    if msgs.is_empty() {
+        msgs.push(MenuItem::new("", "Empty head!"));
+    }
+    Menu::new(SPELLS, "Spells", msgs)
+}
+
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_event::<MenuEvent>()
@@ -148,6 +166,7 @@ impl Plugin for MenuPlugin {
             .on_state_update(STAGE, GameState::Menu, click_nav_system.system())
             .on_state_update(STAGE, GameState::Menu, journal_event.system())
             .on_state_update(STAGE, GameState::Menu, inventory_event.system())
+            .on_state_update(STAGE, GameState::Menu, spells_event.system())
             .on_state_update(STAGE, GameState::Menu, talents_event.system())
             .on_state_update(STAGE, GameState::Menu, menu_close.system())
             .on_state_update(STAGE, GameState::Menu, close_menu.system());
@@ -351,6 +370,23 @@ fn inventory_event(
         push_menu(queue, menus, m);
     }
 }
+
+fn spells_event(
+    mut event_reader: EventReader<MenuItemEvent>,
+    spells: Res<Spells>,
+    menus: ResMut<Menus>,
+    queue: ResMut<Events<MessageEvent>>,
+) {
+    if let Some(_e) = event_reader
+        .iter()
+        .filter(|e| e.menu == MAIN && e.item == SPELLS)
+        .next()
+    {
+        let m = spells_menu(&spells);
+        push_menu(queue, menus, m);
+    }
+}
+
 
 fn talents_event(
     mut event_reader: EventReader<MenuItemEvent>,

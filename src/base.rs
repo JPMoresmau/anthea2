@@ -311,3 +311,41 @@ impl QuestFlags {
         self.flags.contains(&(quest.into(),flag.into()))
     }
 }
+
+#[derive(Debug,Clone)]
+pub struct Spell {
+    pub name: String,
+    pub description: String,
+}
+
+impl Spell {
+    pub fn new<S1: Into<String>,S2: Into<String>>(name: S1, description: S2) -> Self {
+        Self{name: name.into(),description:description.into()}
+    }
+
+}
+
+
+#[derive(Debug,Clone, Default)]
+pub struct Spells {
+    pub spells: Vec<Spell>,
+}
+
+impl Spells {
+    pub fn add_spell<'a>(&'a mut self, spell: Spell) -> &'a mut Self {
+        self.spells.push(spell);
+        self.spells.sort_by_key(|i| i.description.clone());
+        self
+    }
+
+    pub fn contains_spell(&self, spell: &str) -> bool {
+        self.spells.iter().any(|i| i.name==spell)
+    }
+
+    pub fn remove_spell<'a>(&'a mut self, spell: &str) -> &'a mut Self {
+        if let Some((ix,_e)) = self.spells.iter().enumerate().filter(|(_ix,i)| i.name==spell).next(){
+            self.spells.remove(ix);
+        }
+        self
+    }
+}

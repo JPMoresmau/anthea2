@@ -187,7 +187,7 @@ pub fn setup_ui(
                             //left: Val::Px(10.0),
                             ..Default::default()
                         },*/
-                        //size: Size::new(Val::Percent(95.0), Val::Px(50.0)),
+                        max_size: Size::new(Val::Px(SCREEN_WIDTH as f32 * 0.9), Val::Px(SCREEN_HEIGHT as f32 * 0.5)),
                         //flex_grow: 1.0,
                         ..Default::default()
                     },

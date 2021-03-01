@@ -55,6 +55,7 @@ impl Plugin for AntheaPlugin {
             .insert_resource(Inventory::default())
             .insert_resource(Talents::default())
             .insert_resource(QuestFlags::default())
+            .insert_resource(Spells::default())
             .add_event::<AffordanceEvent>()
             .add_event::<CharacterEvent>()
             .add_plugin(CastlePlugin)
