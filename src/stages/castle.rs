@@ -18,6 +18,7 @@ impl Plugin for CastlePlugin {
             .add_system(character_nerita.system())
             .add_system(action_nerita.system())
             .add_system(character_cretien.system())
+            .add_system(consume_sword.system())
         ;
     }
 }
@@ -26,7 +27,7 @@ const MIRROR: &str = "mirror";
 const FOUNTAIN: &str = "fountain";
 const SCISSORS: &str = "scissors";
 const SCROLL: &str = "scroll";
-
+const SWORD: &str = "sword";
 
 const CUT: &str = "cut";
 const FIX: &str = "fix";
@@ -90,6 +91,14 @@ fn castle_area() -> Area {
         20,
     );
     stage.add_item(scroll);
+    let sword = Item::new_consumable(
+        SWORD,
+        "Small sword",
+        "sprites/items/long_sword1.png",
+        34,
+        15,
+    );
+    stage.add_item(sword);
 
     let peleus = Character::new(PELEUS,"Peleus, your brother", "sprites/people/peleus.png",19,2);
     let nerita = Character::new(NERITA,"Nerita, your maid", "sprites/people/nerita.png",6,4);
@@ -359,5 +368,14 @@ fn character_cretien(
                 MessageStyle::Info,
             ));
         }
+    }
+}
+
+fn consume_sword(
+    mut event_reader: EventReader<ItemEvent>,
+    mut talents: ResMut<Talents>,
+){
+    for _e in event_reader.iter().filter(|e| e.0 == SWORD) {
+        talents.weapons+=1;
     }
 }

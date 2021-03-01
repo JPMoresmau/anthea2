@@ -58,6 +58,7 @@ impl Plugin for AntheaPlugin {
             .insert_resource(Spells::default())
             .add_event::<AffordanceEvent>()
             .add_event::<CharacterEvent>()
+            .add_event::<ItemEvent>()
             .add_plugin(CastlePlugin)
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
@@ -193,15 +194,20 @@ fn pickup_item(commands: &mut Commands,
     item_query: Query<(Entity, &Item)>,
     mut stage: ResMut<Area>,
     mut queue: ResMut<Events<MessageEvent>>,
+    mut item_queue: ResMut<Events<ItemEvent>>,
     ){
         if let Some(i) = stage.remove_item_from_pos(&state.map_position.inverse_x()){
             //println!("Item: {}",i.name);
             for (e,_i2) in item_query.iter().filter(|(_e,i2)| i.name==i2.name) {
                 commands.despawn_recursive(e);
             }
-            queue.send(MessageEvent::new(format!("{} picked up",i.description), MessageStyle::Info));
-            inventory.add_item(i);
-            
+            if i.consumable {
+                queue.send(MessageEvent::new(format!("{} consumed",i.description), MessageStyle::Info));
+                item_queue.send(ItemEvent(i.name));
+            } else {
+                queue.send(MessageEvent::new(format!("{} picked up",i.description), MessageStyle::Info));
+                inventory.add_item(i);
+            }
         }
     
 }

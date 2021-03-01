@@ -242,13 +242,19 @@ pub struct Item {
     pub sprite: String,
     pub position: Position,
     pub dimension: Dimension,
+    pub consumable: bool,
 }
 
 impl Item {
     pub fn new<S1: Into<String>,S2: Into<String>,S3: Into<String>>(name: S1, description: S2,sprite: S3, x1: i32, y1: i32) -> Self {
-        Self{name: name.into(),description:description.into(),sprite:sprite.into(),position: sprite_position(x1, y1),dimension: sprite_dimensions(x1, y1,x1,y1)}
+        Self{name: name.into(),description:description.into(),sprite:sprite.into(),position: sprite_position(x1, y1),dimension: sprite_dimensions(x1, y1,x1,y1), consumable: false}
     }
 
+    pub fn new_consumable<S1: Into<String>,S2: Into<String>,S3: Into<String>>(name: S1, description: S2,sprite: S3, x1: i32, y1: i32) -> Self {
+        let mut s=Item::new(name,description,sprite,x1,y1);
+        s.consumable=true;
+        s
+    }
 }
 
 #[derive(Debug,Clone, Default)]
