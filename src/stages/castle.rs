@@ -18,6 +18,7 @@ impl Plugin for CastlePlugin {
             .add_system(character_nerita.system())
             .add_system(action_nerita.system())
             .add_system(character_cretien.system())
+            .add_system(character_scopas.system())
             .add_system(consume_sword.system())
         ;
     }
@@ -36,10 +37,12 @@ const HAIR_CUT: &str = "hair_cut";
 const HAIR_CUT_SELF: &str = "hair_cut_self";
 const PELEUS_FORBIDDEN: &str = "peleus_forbidden";
 const ALLOWED_TO_LEAVE: &str = "allowed_to_leave";
+const TRAINED_BY_SCOPAS: &str = "trained_by_scopas";
 
 const PELEUS: &str = "Peleus";
 const NERITA: &str = "Nerita";
 const CRETIEN: &str = "Cretien";
+const SCOPAS: &str = "Scopas";
 
 const CAT: &str = "cat";
 
@@ -103,8 +106,9 @@ fn castle_area() -> Area {
     let peleus = Character::new(PELEUS,"Peleus, your brother", "sprites/people/peleus.png",19,2);
     let nerita = Character::new(NERITA,"Nerita, your maid", "sprites/people/nerita.png",6,4);
     let cretien = Character::new(CRETIEN,"Cretien, your old teacher", "sprites/people/cretien.png",30,5);
-    
-    stage.add_character(peleus).add_character(nerita).add_character(cretien);
+    let scopas = Character::new(SCOPAS,"Scopas, the weapons master", "sprites/people/scopas.png",22,19);
+
+    stage.add_character(peleus).add_character(nerita).add_character(cretien).add_character(scopas);
 
     stage
 }
@@ -172,6 +176,7 @@ fn action_fountain(
     mut journal: ResMut<Journal>,
     mut flags: ResMut<QuestFlags>,
     mut close_menu: ResMut<Events<CloseMenuEvent>>,
+    mut body_change: ResMut<Events<BodyChangeEvent>>,
 ) {
     if let Some(_e) = event_reader
         .iter()
@@ -181,12 +186,15 @@ fn action_fountain(
         inventory.remove_item(SCISSORS);
         talents.people += 1;
         close_menu.send(CloseMenuEvent);
-        journal.add_entry(JournalEntry::new(
+        journal.add_entry(
             QUEST_MAIN,
             "I cut my hair short using the fountain as a mirror. Not sure I did a great job.",
-        ));
+        );
         flags.set_flag(QUEST_MAIN, HAIR_CUT);
         flags.set_flag(QUEST_MAIN, HAIR_CUT_SELF);
+
+        body_change.send(BodyChangeEvent::new(PlayerPart::Hair,"sprites/people/hair_short.png"));
+        
         queue.send(MessageEvent::new(
             "You feel you've made a mess, but you cut your hair short (People +1).",
             MessageStyle::Info,
@@ -202,6 +210,7 @@ fn action_mirror(
     mut journal: ResMut<Journal>,
     mut flags: ResMut<QuestFlags>,
     mut close_menu: ResMut<Events<CloseMenuEvent>>,
+    mut body_change: ResMut<Events<BodyChangeEvent>>,
 ) {
     if let Some(_e) = event_reader
         .iter()
@@ -210,11 +219,12 @@ fn action_mirror(
     {
         inventory.remove_item(SCISSORS);
         talents.people += 2;
+        body_change.send(BodyChangeEvent::new(PlayerPart::Hair,"sprites/people/hair_short.png"));
         close_menu.send(CloseMenuEvent);
-        journal.add_entry(JournalEntry::new(
+        journal.add_entry(
             QUEST_MAIN,
             "I cut my hair short using the bedroom mirror.",
-        ));
+        );
         flags.set_flag(QUEST_MAIN, HAIR_CUT);
         queue.send(MessageEvent::new(
             "You carefully cut your hair short (People +2).",
@@ -243,7 +253,7 @@ fn character_peleus(
                     MessageStyle::Info,
                 ));
                 
-                journal.add_entry(JournalEntry::new(QUEST_MAIN,"Peleus has allowed me to leave on my quest for Father!"));
+                journal.add_entry(QUEST_MAIN,"Peleus has allowed me to leave on my quest for Father!");
             }
         } else if flags.has_flag(QUEST_MAIN, PELEUS_FORBIDDEN) {
             queue.send(MessageEvent::new(
@@ -252,10 +262,10 @@ fn character_peleus(
             ));
         } else {
             flags.set_flag(QUEST_MAIN, PELEUS_FORBIDDEN);
-            journal.add_entry(JournalEntry::new(
+            journal.add_entry(
                 QUEST_MAIN,
                 "Peleus forbids me to leave. He'll see!",
-            ));
+            );
             queue.send(MessageEvent::new(
                 "I am NOT going to let a girl go chasing a ghost.\nYour duty is to stay here and marry to strenghten my kingdom.",
                 MessageStyle::Info,
@@ -312,6 +322,7 @@ fn action_nerita(
     mut journal: ResMut<Journal>,
     mut flags: ResMut<QuestFlags>,
     mut close_menu: ResMut<Events<CloseMenuEvent>>,
+    mut body_change: ResMut<Events<BodyChangeEvent>>,
 ) {
     if let Some(e) = event_reader
         .iter()
@@ -321,11 +332,12 @@ fn action_nerita(
         if e.item==CUT {
             inventory.remove_item(SCISSORS);
             talents.people += 2;
+            body_change.send(BodyChangeEvent::new(PlayerPart::Hair,"sprites/people/hair_short.png"));
             close_menu.send(CloseMenuEvent);
-            journal.add_entry(JournalEntry::new(
+            journal.add_entry(
                 QUEST_MAIN,
                 "Nerita cut my hair so I don't look too much like a girl now. I think it suits me.",
-            ));
+            );
             flags.set_flag(QUEST_MAIN, HAIR_CUT);
             queue.send(MessageEvent::new(
                 "Really a shame to cut such beautiful hair (People +2)!",
@@ -334,10 +346,10 @@ fn action_nerita(
         } else if e.item==FIX {
             talents.people += 1;
             close_menu.send(CloseMenuEvent);
-            journal.add_entry(JournalEntry::new(
+            journal.add_entry(
                 QUEST_MAIN,
                 "Nerita fixed my hair so it doesn't look as bad as it used to.",
-            ));
+            );
             flags.unset_flag(QUEST_MAIN, HAIR_CUT_SELF);
             queue.send(MessageEvent::new(
                 "Now, you look a bit better now (People +1)!",
@@ -356,7 +368,7 @@ fn character_cretien(
     for _e in event_reader.iter().filter(|e| e.0 == CRETIEN) {
         if inventory.contains_item(SCROLL) {
             queue.send(MessageEvent::new(
-                "Ooohh, this scroll is a magic spell! Let me see if I can teach you the incantation...",
+                "Ooohh, this scroll is a magic spell! Let me see if I can teach you the incantation (Spell gained)...",
                 MessageStyle::Info,
             ));
             inventory.remove_item(SCROLL);
@@ -371,11 +383,49 @@ fn character_cretien(
     }
 }
 
+fn character_scopas(
+    mut event_reader: EventReader<CharacterEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut talents: ResMut<Talents>,
+    mut flags: ResMut<QuestFlags>,
+    mut journal: ResMut<Journal>,
+) {
+    for _e in event_reader.iter().filter(|e| e.0 == SCOPAS) {
+        if talents.weapons>0 {
+            if flags.has_flag(QUEST_MAIN, TRAINED_BY_SCOPAS){
+                queue.send(MessageEvent::new(
+                    "Don't tire yourself out!",
+                    MessageStyle::Info,
+                ));
+            } else {
+                flags.set_flag(QUEST_MAIN, TRAINED_BY_SCOPAS);
+                journal.add_entry(QUEST_MAIN, "Scopas gave me a hard fighting lesson.");
+                
+                queue.send(MessageEvent::new(
+                    "You're getting better with a weapon, but you still need to practise (Weapons +1)!",
+                    MessageStyle::Info,
+                ));
+                talents.weapons+=1;
+            }
+        } else {
+            queue.send(MessageEvent::new(
+                "Get a weapon and come back to me to train.",
+                MessageStyle::Info,
+            ));
+        }
+    }
+}
+
+
 fn consume_sword(
     mut event_reader: EventReader<ItemEvent>,
     mut talents: ResMut<Talents>,
+    mut body_change: ResMut<Events<BodyChangeEvent>>,
+    mut queue: ResMut<Events<MessageEvent>>,
 ){
     for _e in event_reader.iter().filter(|e| e.0 == SWORD) {
+        body_change.send(BodyChangeEvent::new(PlayerPart::RightHand,"sprites/people/short_sword.png"));
         talents.weapons+=1;
+        queue.send(MessageEvent::new("You now have a weapon (Weapons +1)!", MessageStyle::Info));
     }
 }

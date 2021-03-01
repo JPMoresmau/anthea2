@@ -88,10 +88,6 @@ impl Default for TileEntityState {
     }
 }
 
-pub struct PlayerPart {
-    pub part: Part,
-}
-
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position {
     pub x: i32,
@@ -164,11 +160,13 @@ impl Dimension {
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MapTile;
 
-pub enum Part {
-    BODY,
-    PANTS,
-    TOP,
-    HAIR,
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, EnumIter)]
+pub enum PlayerPart {
+    Body,
+    Pants,
+    Top,
+    Hair,
+    RightHand,
 }
 
 
@@ -191,7 +189,7 @@ impl Default for Journal {
         let q=Quest::new(QUEST_MAIN,"Main Quest");
         let mut j = Journal {quests:HashMap::new(), entries:vec![]};
         j.add_quest(q)
-            .add_entry(JournalEntry::new(QUEST_MAIN,"I have decided it, and nothing will alter my resolve. I will set up in search for Father. Peleus cannot stop me."));
+            .add_entry(QUEST_MAIN,"I have decided it, and nothing will alter my resolve. I will set up in search for Father. Peleus cannot stop me.");
 
         j
     }
@@ -204,8 +202,8 @@ impl Journal {
         self
     } 
 
-    pub fn add_entry<'a>(&'a mut self, entry:JournalEntry) -> &'a mut Self {
-        self.entries.push(entry);
+    pub fn add_entry<'a,S1: Into<String>, S2: Into<String>>(&'a mut self, quest: S1, text: S2) -> &'a mut Self {
+        self.entries.push(JournalEntry::new(quest,text));
         self
     } 
 }
@@ -353,5 +351,16 @@ impl Spells {
             self.spells.remove(ix);
         }
         self
+    }
+}
+
+pub struct BodyChangeEvent {
+    pub part: PlayerPart,
+    pub sprite: String,
+}
+
+impl BodyChangeEvent {
+    pub fn new<S1: Into<String>>(part: PlayerPart, sprite:S1) -> Self {
+        Self{part:part,sprite:sprite.into()}
     }
 }

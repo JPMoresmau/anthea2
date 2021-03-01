@@ -59,6 +59,7 @@ impl Plugin for AntheaPlugin {
             .add_event::<AffordanceEvent>()
             .add_event::<CharacterEvent>()
             .add_event::<ItemEvent>()
+            .add_event::<BodyChangeEvent>()
             .add_plugin(CastlePlugin)
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
@@ -77,6 +78,7 @@ impl Plugin for AntheaPlugin {
             .on_state_update(STAGE, GameState::Running, cursor_system.system())
             .on_state_update(STAGE, GameState::Running, click_system.system())
             .on_state_update(STAGE, GameState::Running, pickup_item.system())
+            .on_state_update(STAGE, GameState::Running, body_change.system())
             .add_plugin(MenuPlugin)
             .add_plugin(UIPlugin)
             //.add_system(visibility_system.system())
@@ -202,7 +204,7 @@ fn pickup_item(commands: &mut Commands,
                 commands.despawn_recursive(e);
             }
             if i.consumable {
-                queue.send(MessageEvent::new(format!("{} consumed",i.description), MessageStyle::Info));
+                //queue.send(MessageEvent::new(format!("{} consumed",i.description), MessageStyle::Info));
                 item_queue.send(ItemEvent(i.name));
             } else {
                 queue.send(MessageEvent::new(format!("{} picked up",i.description), MessageStyle::Info));
@@ -321,4 +323,30 @@ fn click_system(mouse_button_input: Res<Input<MouseButton>>,
      }
 }
 
+fn body_change(
+    mut event_reader: EventReader<BodyChangeEvent>,
+    asset_server: Res<AssetServer>,
+    texture_atlases: Res<Assets<TextureAtlas>>,
+    mut sprite_query: Query<(&mut TextureAtlasSprite,&Handle<TextureAtlas>,&PlayerPart)>,
+){
+    if let Some(e) = event_reader
+        .iter()
+        .next()
+    {
+        for (mut sprite,atlas_handle,part) in sprite_query.iter_mut() {
+            if part==&e.part {
+                if let Some(texture_atlas) = texture_atlases.get(atlas_handle) {
 
+                    let hair_handle = asset_server.get_handle(e.sprite.as_str());
+                    if let Some(hair_index) = texture_atlas.get_texture_index(&hair_handle) {
+                        sprite.index=hair_index as u32;
+                    } else {
+                        eprintln!("Could not find handle for {}",e.sprite);
+                    }
+                } else {
+                    eprintln!("Could not find handle for boyd parts");
+                }
+            }
+        }
+    }
+}

@@ -143,6 +143,8 @@ pub fn setup_people( commands: &mut Commands,
     let top_handle = asset_server.get_handle("sprites/people/shirt_white1.png");
     let top_index = texture_atlas.get_texture_index(&top_handle).unwrap();
 
+    let hand_handle = asset_server.get_handle("sprites/people/empty.png");
+    let hand_index = texture_atlas.get_texture_index(&hand_handle).unwrap();
 
     let atlas_handle = texture_atlases.add(texture_atlas);
 
@@ -157,28 +159,35 @@ pub fn setup_people( commands: &mut Commands,
                     transform: Transform::from_translation(pos),
                     ..Default::default()
                 })
-                .with(PlayerPart{part:Part::BODY})
+                .with(PlayerPart::Body)
                 .spawn(SpriteSheetBundle {
                         sprite: TextureAtlasSprite::new(pants_index as u32),
                         texture_atlas: atlas_handle.clone(),
                         transform: Transform::from_translation(pos),
                         ..Default::default()}
                 )
-                .with(PlayerPart{part:Part::PANTS})
+                .with(PlayerPart::Pants)
                 .spawn(SpriteSheetBundle {
                     sprite: TextureAtlasSprite::new(top_index as u32),
                     texture_atlas: atlas_handle.clone(),
                     transform: Transform::from_translation(pos),
                     ..Default::default()}
                 )
-                .with(PlayerPart{part:Part::TOP})
+                .with(PlayerPart::Top)
                 .spawn(SpriteSheetBundle {
                     sprite: TextureAtlasSprite::new(hair_index as u32),
                     texture_atlas: atlas_handle.clone(),
                     transform: Transform::from_translation(pos),
                     ..Default::default()}
                 )
-                .with(PlayerPart{part:Part::HAIR});
+                .with(PlayerPart::Hair)
+                .spawn(SpriteSheetBundle {
+                    sprite: TextureAtlasSprite::new(hand_index as u32),
+                    texture_atlas: atlas_handle.clone(),
+                    transform: Transform::from_translation(pos),
+                    ..Default::default()}
+                )
+                .with(PlayerPart::RightHand);
             })
         ;
         let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();   
