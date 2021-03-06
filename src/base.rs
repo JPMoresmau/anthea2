@@ -20,6 +20,8 @@ pub const CLOSE: &str = "Close";
 
 pub const QUEST_MAIN: &str = "main";
 
+pub const QUEST_STARTED: &str = "started";
+pub const QUEST_COMPLETED: &str = "completed";
 
 #[derive(Default)]
 pub struct AntheaHandles {

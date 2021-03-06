@@ -19,6 +19,9 @@ impl Plugin for CastlePlugin {
             .add_system(action_nerita.system())
             .add_system(character_cretien.system())
             .add_system(character_scopas.system())
+            .add_system(character_cherise.system())
+            .add_system(character_rats.system())
+            .add_system(action_rats.system())
             .add_system(consume_sword.system())
         ;
     }
@@ -32,19 +35,28 @@ const SWORD: &str = "sword";
 
 const CUT: &str = "cut";
 const FIX: &str = "fix";
+const FIGHT: &str = "fight";
+const SCARE: &str = "scare";
 
 const HAIR_CUT: &str = "hair_cut";
 const HAIR_CUT_SELF: &str = "hair_cut_self";
 const PELEUS_FORBIDDEN: &str = "peleus_forbidden";
 const ALLOWED_TO_LEAVE: &str = "allowed_to_leave";
 const TRAINED_BY_SCOPAS: &str = "trained_by_scopas";
+const OBTAINED_FOOD: &str = "obtained_food";
 
 const PELEUS: &str = "Peleus";
 const NERITA: &str = "Nerita";
 const CRETIEN: &str = "Cretien";
 const SCOPAS: &str = "Scopas";
+const CHERISE: &str = "Cherise";
+
+const RATS: &str = "Rats";
 
 const CAT: &str = "cat";
+
+const QUEST_RATS: &str="Rats";
+const RATS_GONE: &str="rats_gone";
 
 fn castle_area() -> Area {
     let mut stage = Area::new("Selaion Palace", 0, sprite_position(-20, 4));
@@ -107,8 +119,12 @@ fn castle_area() -> Area {
     let nerita = Character::new(NERITA,"Nerita, your maid", "sprites/people/nerita.png",6,4);
     let cretien = Character::new(CRETIEN,"Cretien, your old teacher", "sprites/people/cretien.png",30,5);
     let scopas = Character::new(SCOPAS,"Scopas, the weapons master", "sprites/people/scopas.png",22,19);
+    let cherise = Character::new(CHERISE,"Cherise, the cook", "sprites/people/cherise.png",12,21);
 
-    stage.add_character(peleus).add_character(nerita).add_character(cretien).add_character(scopas);
+    let rats = Character::new(RATS,"Big rats", "sprites/people/rat.png",2,24);
+
+    stage.add_character(peleus).add_character(nerita).add_character(cretien).add_character(scopas)
+        .add_character(cherise).add_character(rats);
 
     stage
 }
@@ -364,6 +380,7 @@ fn character_cretien(
     mut queue: ResMut<Events<MessageEvent>>,
     mut inventory: ResMut<Inventory>,
     mut spells: ResMut<Spells>,
+    mut journal: ResMut<Journal>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == CRETIEN) {
         if inventory.contains_item(SCROLL) {
@@ -374,6 +391,7 @@ fn character_cretien(
             inventory.remove_item(SCROLL);
             let spell=Spell::new(CAT,"Create the illusion of a cat!");
             spells.add_spell(spell);
+            journal.add_entry(QUEST_MAIN, "Cretien taught me a little spell, not sure if it'll be useful...");
         } else {
             queue.send(MessageEvent::new(
                 "I'm always on the lookout for new knowledge!",
@@ -427,5 +445,138 @@ fn consume_sword(
         body_change.send(BodyChangeEvent::new(PlayerPart::RightHand,"sprites/people/short_sword.png"));
         talents.weapons+=1;
         queue.send(MessageEvent::new("You now have a weapon (Weapons +1)!", MessageStyle::Info));
+    }
+}
+
+fn character_cherise(
+    mut event_reader: EventReader<CharacterEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut flags: ResMut<QuestFlags>,
+    mut journal: ResMut<Journal>,
+) {
+    for _e in event_reader.iter().filter(|e| e.0 == CHERISE) {
+        if flags.has_flag(QUEST_RATS, QUEST_STARTED){
+            if flags.has_flag(QUEST_RATS, QUEST_COMPLETED){
+                queue.send(MessageEvent::new(
+                    "Thanks again for killing these rats!",
+                    MessageStyle::Info,
+                ));
+            } else if flags.has_flag(QUEST_RATS, RATS_GONE){
+                
+                flags.set_flag(QUEST_RATS, QUEST_COMPLETED);
+                journal.add_entry(QUEST_MAIN,"Cherise gave me some food to thank me for getting rid of the rats in the cellar");
+                flags.set_flag(QUEST_MAIN,OBTAINED_FOOD);
+                queue.send(MessageEvent::new(
+                    "You got rid of the rats? Great! Here's some food for you...",
+                    MessageStyle::Info,
+                ));
+            } else {
+                queue.send(MessageEvent::new(
+                    "These rats are driving me crazy!",
+                    MessageStyle::Info,
+                ));
+            } 
+        } else {
+            flags.set_flag(QUEST_RATS, QUEST_STARTED);
+            let q=Quest::new(QUEST_RATS,"Get rid of the rats in the cellar");
+            journal.add_quest(q);
+            journal.add_entry(QUEST_RATS,"Cherise would like somebody to kill the rats in the cellar.");
+            queue.send(MessageEvent::new(
+                "Don't tell your brother, but there are rats in the cellar. I can't get rid of them, I wish somebody would kill them all!",
+                MessageStyle::Info,
+            ));
+        }
+    }
+}
+
+fn character_rats(
+    mut event_reader: EventReader<CharacterEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut menu: ResMut<Events<MenuEvent>>,
+    talents: Res<Talents>,
+    spells: Res<Spells>,
+    flags: Res<QuestFlags>,
+) {
+    for _e in event_reader.iter().filter(|e| e.0 == RATS) {
+        if flags.has_flag(QUEST_RATS, QUEST_STARTED){
+            let mut mis = vec![];
+            if talents.weapons>1 {
+                mis.push(MenuItem::new(
+                    FIGHT,
+                    "Kill the rats!",
+                ));
+            }
+            if spells.contains_spell(CAT){
+                mis.push(MenuItem::new(
+                    SCARE,
+                    "Create the illusion of a cat",
+                ));
+            }
+            if mis.is_empty() {
+                queue.send(MessageEvent::new(
+                    "The rats are not afraid of you.",
+                    MessageStyle::Info,
+                ));
+            } else {
+                if mis.len()<2 {
+                    mis.push(MenuItem::new(
+                        "",
+                        "(More options could be available)",
+                    ));
+                }
+    
+                let m = Menu::new(RATS, "Big cellar rats", mis);
+                menu.send(MenuEvent::new(m));
+
+            }
+           
+        } else {
+            queue.send(MessageEvent::new(
+                "The rats are not afraid of you.",
+                MessageStyle::Info,
+            ));
+        }
+    }
+}
+
+fn action_rats(
+    commands: &mut Commands,
+    mut event_reader: EventReader<MenuItemEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut talents: ResMut<Talents>,
+    mut flags: ResMut<QuestFlags>,
+    mut area: ResMut<Area>,
+    mut close_menu: ResMut<Events<CloseMenuEvent>>,
+    character_query: Query<(Entity, &Character)>,){
+    if let Some(e) = event_reader
+        .iter()
+        .filter(|e| e.menu == RATS)
+        .next()
+    {
+        let mut gone=false;
+        if e.item==FIGHT {
+            queue.send(MessageEvent::new(
+                "You massacre the rats.",
+                MessageStyle::Info,
+            ));
+            gone = true;
+            
+        } else if e.item==SCARE {
+            talents.animals+=1;
+            queue.send(MessageEvent::new(
+                "You pronounce the incantation, a big cat appears, scaring the rats away (Animals+1).",
+                MessageStyle::Info,
+            ));
+            gone = true;
+        }
+        if gone {
+            flags.set_flag(QUEST_RATS, RATS_GONE);
+
+            close_menu.send(CloseMenuEvent);
+            for (e,_i2) in character_query.iter().filter(|(_e,c)| c.name==RATS) {
+                commands.despawn_recursive(e);
+            }
+            area.characters.remove(RATS);
+        }
     }
 }
