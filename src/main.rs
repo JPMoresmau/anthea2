@@ -60,14 +60,15 @@ impl Plugin for AntheaPlugin {
             .add_event::<CharacterEvent>()
             .add_event::<ItemEvent>()
             .add_event::<BodyChangeEvent>()
+            .add_event::<JournalEvent>()
             .add_plugin(CastlePlugin)
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
             .add_asset::<TileSet>()
             .init_asset_loader::<TileSetAssetLoader>()
             .add_stage_after(CoreStage::Update, STAGE, StateStage::<GameState>::default())
-            .on_state_enter(STAGE, GameState::Setup, load_textures.system())
-            .on_state_update(STAGE, GameState::Setup, check_textures.system())
+            .on_state_enter(STAGE, GameState::Setup, load_assets.system())
+            .on_state_update(STAGE, GameState::Setup, check_assets.system())
             .on_state_enter(STAGE, GameState::Background, setup_camera.system())
             .on_state_update(STAGE, GameState::Title, setup_ui.system())
             .on_state_enter(STAGE, GameState::Background, setup_map.system())
@@ -79,6 +80,7 @@ impl Plugin for AntheaPlugin {
             .on_state_update(STAGE, GameState::Running, click_system.system())
             .on_state_update(STAGE, GameState::Running, pickup_item.system())
             .on_state_update(STAGE, GameState::Running, body_change.system())
+            .on_state_update(STAGE, GameState::Running, journal.system())
             .add_plugin(MenuPlugin)
             .add_plugin(UIPlugin)
             //.add_system(visibility_system.system())
@@ -86,7 +88,7 @@ impl Plugin for AntheaPlugin {
     }
 }
 
-fn load_textures(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Res<AssetServer>) {
+fn load_assets(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Res<AssetServer>) {
     rpg_sprite_handles.people_handles = asset_server.load_folder("sprites/people").unwrap();
     rpg_sprite_handles.tile_handles = asset_server.load_folder("sprites/tiles").unwrap();
     rpg_sprite_handles.item_handles = asset_server.load_folder("sprites/items").unwrap();
@@ -95,10 +97,11 @@ fn load_textures(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Re
     rpg_sprite_handles.ui_handle = asset_server.load("RPG_GUI_v1.png");
     rpg_sprite_handles.paper_handle = asset_server.load("paper background.png");
     rpg_sprite_handles.font_handle = asset_server.load("GRECOromanLubedWrestling.ttf");
+    rpg_sprite_handles.sound_handles = asset_server.load_folder("sounds").unwrap();
 }
 
 
-fn check_textures(
+fn check_assets(
     mut state: ResMut<State<GameState>>,
     rpg_sprite_handles: ResMut<AntheaHandles>,
     asset_server: Res<AssetServer>,
@@ -106,12 +109,14 @@ fn check_textures(
     let ls = asset_server.get_group_load_state(rpg_sprite_handles.people_handles.iter()
         .chain(rpg_sprite_handles.tile_handles.iter())
         .chain(rpg_sprite_handles.item_handles.iter())
+        .chain(rpg_sprite_handles.sound_handles.iter())
         .map(|handle| handle.id)
         .chain(rpg_sprite_handles.map_handles.iter().map(|h| h.id))
         .chain(std::iter::once(rpg_sprite_handles.tileset_handle.id))
         .chain(std::iter::once(rpg_sprite_handles.ui_handle.id))
         .chain(std::iter::once(rpg_sprite_handles.paper_handle.id))
         .chain(std::iter::once(rpg_sprite_handles.font_handle.id))
+      
     );
     if let LoadState::Loaded = ls {
         state.set_next(GameState::Title).unwrap();
@@ -129,6 +134,8 @@ fn player_movement_system(
     mut msg: ResMut<Events<ClearMessage>>,
     mut ev_affordance: ResMut<Events<AffordanceEvent>>,
     mut ev_character: ResMut<Events<CharacterEvent>>,
+    asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
 ){
     state.last_move+=time.delta().as_millis();
     if state.last_move<MOVE_DELAY{
@@ -167,7 +174,7 @@ fn player_movement_system(
                 // println!("Character: {}",c.name);
                 ev_character.send(CharacterEvent(c.name.clone()));
             } else {
-
+                audio.play(asset_server.get_handle("sounds/steps.ogg"));
                 let dif_x = (new_pos.x-state.map_position.x) as f32;
                 let dif_y = (new_pos.y-state.map_position.y) as f32;
                 state.map_position=new_pos;
@@ -197,12 +204,15 @@ fn pickup_item(commands: &mut Commands,
     mut stage: ResMut<Area>,
     mut queue: ResMut<Events<MessageEvent>>,
     mut item_queue: ResMut<Events<ItemEvent>>,
+    asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
     ){
         if let Some(i) = stage.remove_item_from_pos(&state.map_position.inverse_x()){
             //println!("Item: {}",i.name);
             for (e,_i2) in item_query.iter().filter(|(_e,i2)| i.name==i2.name) {
                 commands.despawn_recursive(e);
             }
+            audio.play(asset_server.get_handle("sounds/pickup.ogg"));
             if i.consumable {
                 //queue.send(MessageEvent::new(format!("{} consumed",i.description), MessageStyle::Info));
                 item_queue.send(ItemEvent(i.name));
@@ -349,4 +359,15 @@ fn body_change(
             }
         }
     }
+}
+
+fn journal(mut event_reader: EventReader<JournalEvent>,
+    asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
+    mut journal: ResMut<Journal>
+    ){
+        for je in event_reader.iter() {
+            audio.play(asset_server.get_handle("sounds/journal.ogg"));
+            journal.add_entry(&je.quest,&je.text);
+        }
 }

@@ -194,7 +194,7 @@ fn action_fountain(
     mut inventory: ResMut<Inventory>,
     mut talents: ResMut<Talents>,
     mut queue: ResMut<Events<MessageEvent>>,
-    mut journal: ResMut<Journal>,
+    mut journal: ResMut<Events<JournalEvent>>,
     mut flags: ResMut<QuestFlags>,
     mut close_menu: ResMut<Events<CloseMenuEvent>>,
     mut body_change: ResMut<Events<BodyChangeEvent>>,
@@ -207,10 +207,10 @@ fn action_fountain(
         inventory.remove_item(SCISSORS);
         talents.people += 1;
         close_menu.send(CloseMenuEvent);
-        journal.add_entry(
+        journal.send(JournalEvent::new(
             QUEST_MAIN,
             "I cut my hair short using the fountain as a mirror. Not sure I did a great job.",
-        );
+        ));
         flags.set_flag(QUEST_MAIN, HAIR_CUT);
         flags.set_flag(QUEST_MAIN, HAIR_CUT_SELF);
 
@@ -228,7 +228,7 @@ fn action_mirror(
     mut inventory: ResMut<Inventory>,
     mut talents: ResMut<Talents>,
     mut queue: ResMut<Events<MessageEvent>>,
-    mut journal: ResMut<Journal>,
+    mut journal: ResMut<Events<JournalEvent>>,
     mut flags: ResMut<QuestFlags>,
     mut close_menu: ResMut<Events<CloseMenuEvent>>,
     mut body_change: ResMut<Events<BodyChangeEvent>>,
@@ -242,10 +242,10 @@ fn action_mirror(
         talents.people += 2;
         body_change.send(BodyChangeEvent::new(PlayerPart::Hair,"sprites/people/hair_short.png"));
         close_menu.send(CloseMenuEvent);
-        journal.add_entry(
+        journal.send(JournalEvent::new(
             QUEST_MAIN,
             "I cut my hair short using the bedroom mirror.",
-        );
+        ));
         flags.set_flag(QUEST_MAIN, HAIR_CUT);
         queue.send(MessageEvent::new(
             "You carefully cut your hair short (People +2).",
@@ -258,7 +258,7 @@ fn character_peleus(
     mut flags: ResMut<QuestFlags>,
     mut event_reader: EventReader<CharacterEvent>,
     mut queue: ResMut<Events<MessageEvent>>,
-    mut journal: ResMut<Journal>,
+    mut journal: ResMut<Events<JournalEvent>>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == PELEUS) {
         if flags.has_flag(QUEST_MAIN, HAIR_CUT){
@@ -274,7 +274,7 @@ fn character_peleus(
                     MessageStyle::Info,
                 ));
                 
-                journal.add_entry(QUEST_MAIN,"Peleus has allowed me to leave on my quest for Father!");
+                journal.send(JournalEvent::new(QUEST_MAIN,"Peleus has allowed me to leave on my quest for Father!"));
             }
         } else if flags.has_flag(QUEST_MAIN, PELEUS_FORBIDDEN) {
             queue.send(MessageEvent::new(
@@ -283,10 +283,10 @@ fn character_peleus(
             ));
         } else {
             flags.set_flag(QUEST_MAIN, PELEUS_FORBIDDEN);
-            journal.add_entry(
+            journal.send(JournalEvent::new(
                 QUEST_MAIN,
                 "Peleus forbids me to leave. He'll see!",
-            );
+            ));
             queue.send(MessageEvent::new(
                 "I am NOT going to let a girl go chasing a ghost.\nYour duty is to stay here and marry to strenghten my kingdom.",
                 MessageStyle::Info,
@@ -340,7 +340,7 @@ fn action_nerita(
     mut inventory: ResMut<Inventory>,
     mut talents: ResMut<Talents>,
     mut queue: ResMut<Events<MessageEvent>>,
-    mut journal: ResMut<Journal>,
+    mut journal: ResMut<Events<JournalEvent>>,
     mut flags: ResMut<QuestFlags>,
     mut close_menu: ResMut<Events<CloseMenuEvent>>,
     mut body_change: ResMut<Events<BodyChangeEvent>>,
@@ -355,10 +355,10 @@ fn action_nerita(
             talents.people += 2;
             body_change.send(BodyChangeEvent::new(PlayerPart::Hair,"sprites/people/hair_short.png"));
             close_menu.send(CloseMenuEvent);
-            journal.add_entry(
+            journal.send(JournalEvent::new(
                 QUEST_MAIN,
                 "Nerita cut my hair so I don't look too much like a girl now. I think it suits me.",
-            );
+            ));
             flags.set_flag(QUEST_MAIN, HAIR_CUT);
             queue.send(MessageEvent::new(
                 "Really a shame to cut such beautiful hair (People +2)!",
@@ -367,10 +367,10 @@ fn action_nerita(
         } else if e.item==FIX {
             talents.people += 1;
             close_menu.send(CloseMenuEvent);
-            journal.add_entry(
+            journal.send(JournalEvent::new(
                 QUEST_MAIN,
                 "Nerita fixed my hair so it doesn't look as bad as it used to.",
-            );
+            ));
             flags.unset_flag(QUEST_MAIN, HAIR_CUT_SELF);
             queue.send(MessageEvent::new(
                 "Now, you look a bit better now (People +1)!",
@@ -385,7 +385,7 @@ fn character_cretien(
     mut queue: ResMut<Events<MessageEvent>>,
     mut inventory: ResMut<Inventory>,
     mut spells: ResMut<Spells>,
-    mut journal: ResMut<Journal>,
+    mut journal: ResMut<Events<JournalEvent>>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == CRETIEN) {
         if inventory.contains_item(SCROLL) {
@@ -396,7 +396,7 @@ fn character_cretien(
             inventory.remove_item(SCROLL);
             let spell=Spell::new(CAT,"Create the illusion of a cat!");
             spells.add_spell(spell);
-            journal.add_entry(QUEST_MAIN, "Cretien taught me a little spell, not sure if it'll be useful...");
+            journal.send(JournalEvent::new(QUEST_MAIN, "Cretien taught me a little spell, not sure if it'll be useful..."));
         } else {
             queue.send(MessageEvent::new(
                 "I'm always on the lookout for new knowledge!",
@@ -411,7 +411,7 @@ fn character_scopas(
     mut queue: ResMut<Events<MessageEvent>>,
     mut talents: ResMut<Talents>,
     mut flags: ResMut<QuestFlags>,
-    mut journal: ResMut<Journal>,
+    mut journal: ResMut<Events<JournalEvent>>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == SCOPAS) {
         if talents.weapons>0 {
@@ -422,7 +422,7 @@ fn character_scopas(
                 ));
             } else {
                 flags.set_flag(QUEST_MAIN, TRAINED_BY_SCOPAS);
-                journal.add_entry(QUEST_MAIN, "Scopas gave me a hard fighting lesson.");
+                journal.send(JournalEvent::new(QUEST_MAIN, "Scopas gave me a hard fighting lesson."));
                 
                 queue.send(MessageEvent::new(
                     "You're getting better with a weapon, but you still need to practise (Weapons +1)!",
@@ -458,6 +458,7 @@ fn character_cherise(
     mut queue: ResMut<Events<MessageEvent>>,
     mut flags: ResMut<QuestFlags>,
     mut journal: ResMut<Journal>,
+    mut journale: ResMut<Events<JournalEvent>>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == CHERISE) {
         if flags.has_flag(QUEST_RATS, QUEST_STARTED){
@@ -469,7 +470,7 @@ fn character_cherise(
             } else if flags.has_flag(QUEST_RATS, RATS_GONE){
                 
                 flags.set_flag(QUEST_RATS, QUEST_COMPLETED);
-                journal.add_entry(QUEST_MAIN,"Cherise gave me some food to thank me for getting rid of the rats in the cellar");
+                journale.send(JournalEvent::new(QUEST_MAIN,"Cherise gave me some food to thank me for getting rid of the rats in the cellar"));
                 flags.set_flag(QUEST_MAIN,OBTAINED_FOOD);
                 queue.send(MessageEvent::new(
                     "You got rid of the rats? Great! Here's some food for you...",
@@ -485,7 +486,7 @@ fn character_cherise(
             flags.set_flag(QUEST_RATS, QUEST_STARTED);
             let q=Quest::new(QUEST_RATS,"Get rid of the rats in the cellar");
             journal.add_quest(q);
-            journal.add_entry(QUEST_RATS,"Cherise would like somebody to kill the rats in the cellar.");
+            journale.send(JournalEvent::new(QUEST_RATS,"Cherise would like somebody to kill the rats in the cellar."));
             queue.send(MessageEvent::new(
                 "Don't tell your brother, but there are rats in the cellar. I can't get rid of them, I wish somebody would kill them all!",
                 MessageStyle::Info,
@@ -591,7 +592,7 @@ fn character_theon(
     mut event_reader: EventReader<CharacterEvent>,
     mut queue: ResMut<Events<MessageEvent>>,
     mut flags: ResMut<QuestFlags>,
-    mut journal: ResMut<Journal>,
+    mut journal: ResMut<Events<JournalEvent>>,
     mut state: ResMut<AntheaState>,
     maptile_query: Query<&MapTile>,
     mut area: ResMut<Area>,){
@@ -604,7 +605,7 @@ fn character_theon(
                     ));
                 } else {
                     flags.set_flag(QUEST_MAIN, OPENED_EXIT);
-                    journal.add_entry(QUEST_MAIN,"I can now go out of the palace");
+                    journal.send(JournalEvent::new(QUEST_MAIN,"I can now go out of the palace"));
                     queue.send(MessageEvent::new(
                         "Peleus told us we could let you go. Careful out there, my lady.",
                         MessageStyle::Info,

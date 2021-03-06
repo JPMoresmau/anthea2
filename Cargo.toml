@@ -5,7 +5,7 @@ authors = ["JP Moresmau <jp@moresmau.fr>"]
 edition = "2018"
 
 [dependencies]
-bevy = { version = "0.4", features = [ "wav" ], git="https://github.com/bevyengine/bevy" }
+bevy = { version = "0.4", features = [ "vorbis" ], git="https://github.com/bevyengine/bevy" }
 rand = "0.7.3"
 roxmltree = { version = "0.14.0", features= ["std"]}
 anyhow = "1.0.38"

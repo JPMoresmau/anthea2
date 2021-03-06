@@ -34,6 +34,7 @@ pub struct AntheaHandles {
     pub paper_handle: Handle<Texture>,
     pub font_handle: Handle<Font>,
     pub ui_texture_atlas_handle: Handle<TextureAtlas>,
+    pub sound_handles: Vec<HandleUntyped>,
 }
 
 
@@ -222,6 +223,17 @@ impl JournalEntry {
     }
 }
 
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct JournalEvent{
+    pub quest: String,
+    pub text: String,
+}
+
+impl JournalEvent {
+    pub fn new<S1: Into<String>, S2: Into<String>>(quest: S1, text: S2) -> Self {
+        JournalEvent{quest:quest.into(),text:text.into()}
+    }
+}
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Quest {
