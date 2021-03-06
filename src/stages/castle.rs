@@ -24,6 +24,7 @@ impl Plugin for CastlePlugin {
             .add_system(action_rats.system())
             .add_system(character_theon.system())
             .add_system(consume_sword.system())
+            .add_system(affordance_outside.system())
         ;
     }
 }
@@ -33,7 +34,7 @@ const FOUNTAIN: &str = "fountain";
 const SCISSORS: &str = "scissors";
 const SCROLL: &str = "scroll";
 const SWORD: &str = "sword";
-
+const OUTSIDE: &str = "outside";
 const CUT: &str = "cut";
 const FIX: &str = "fix";
 const FIGHT: &str = "fight";
@@ -592,7 +593,8 @@ fn character_theon(
     mut flags: ResMut<QuestFlags>,
     mut journal: ResMut<Journal>,
     mut state: ResMut<AntheaState>,
-    maptile_query: Query<&MapTile>,){
+    maptile_query: Query<&MapTile>,
+    mut area: ResMut<Area>,){
         for _e in event_reader.iter().filter(|e| e.0 == THEON) {
             if flags.has_flag(QUEST_MAIN, ALLOWED_TO_LEAVE){
                 if flags.has_flag(QUEST_MAIN, OPENED_EXIT){
@@ -621,6 +623,11 @@ fn character_theon(
                             }
                         }
                     }
+                    for x in 20..=22 {
+                        let outside1 = Affordance::new(format!("{}_{}",OUTSIDE,x), "The outside world", x, 29);
+                        area.add_affordance(outside1);
+                    }
+                   
                 }
             } else {
                 queue.send(MessageEvent::new(
@@ -630,4 +637,37 @@ fn character_theon(
                
             }
         }
+}
+
+fn affordance_outside(
+    talents: Res<Talents>,
+    flags: Res<QuestFlags>,
+    mut event_reader: EventReader<AffordanceEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut state: ResMut<State<GameState>>,
+) {
+    for _e in event_reader.iter().filter(|e| e.0.starts_with(OUTSIDE)) {
+        if !flags.has_flag(QUEST_MAIN, OBTAINED_FOOD) {
+            queue.send(MessageEvent::new(
+                "You should get food before venturing outside",
+                MessageStyle::Info,
+            ));
+        } else if talents.weapons<1 {
+            queue.send(MessageEvent::new(
+                "You should get a weapon, the outside world is not safe",
+                MessageStyle::Info,
+            ));
+        } else {
+            queue.send(MessageEvent::new_multi(vec![
+                Message {
+                    contents: "Success!".to_owned(),
+                    style: MessageStyle::Title,
+                },
+                Message {
+                    contents: "You pass the castle gate. Your adventure truly begins!".to_owned(),
+                    style: MessageStyle::Info,
+                }]));
+                state.set_next(GameState::End).unwrap();
+        }
+    }
 }
