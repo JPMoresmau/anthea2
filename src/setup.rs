@@ -52,7 +52,7 @@ pub fn setup_map( commands: &mut Commands,
                     transform: Transform::from_translation(vec3),
                     visible: Visible{is_transparent:true,is_visible:false},
                     ..Default::default()
-                }).with(MapTile);
+                }).with(MapTile(ix));
 
                 let rel_pos=state.map_position.to_relative(&pos);
                 let e = state.positions.entry(rel_pos.clone()).or_default();

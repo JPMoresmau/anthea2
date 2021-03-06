@@ -160,7 +160,7 @@ impl Dimension {
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct MapTile;
+pub struct MapTile(pub usize);
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, EnumIter)]
 pub enum PlayerPart {

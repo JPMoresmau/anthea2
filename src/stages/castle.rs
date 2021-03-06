@@ -22,6 +22,7 @@ impl Plugin for CastlePlugin {
             .add_system(character_cherise.system())
             .add_system(character_rats.system())
             .add_system(action_rats.system())
+            .add_system(character_theon.system())
             .add_system(consume_sword.system())
         ;
     }
@@ -42,6 +43,7 @@ const HAIR_CUT: &str = "hair_cut";
 const HAIR_CUT_SELF: &str = "hair_cut_self";
 const PELEUS_FORBIDDEN: &str = "peleus_forbidden";
 const ALLOWED_TO_LEAVE: &str = "allowed_to_leave";
+const OPENED_EXIT: &str = "opened_exit";
 const TRAINED_BY_SCOPAS: &str = "trained_by_scopas";
 const OBTAINED_FOOD: &str = "obtained_food";
 
@@ -50,6 +52,7 @@ const NERITA: &str = "Nerita";
 const CRETIEN: &str = "Cretien";
 const SCOPAS: &str = "Scopas";
 const CHERISE: &str = "Cherise";
+const THEON: &str = "Theon";
 
 const RATS: &str = "Rats";
 
@@ -120,11 +123,12 @@ fn castle_area() -> Area {
     let cretien = Character::new(CRETIEN,"Cretien, your old teacher", "sprites/people/cretien.png",30,5);
     let scopas = Character::new(SCOPAS,"Scopas, the weapons master", "sprites/people/scopas.png",22,19);
     let cherise = Character::new(CHERISE,"Cherise, the cook", "sprites/people/cherise.png",12,21);
+    let theon = Character::new(THEON,"Theon, a palace guard", "sprites/people/theon.png",21,27);
 
     let rats = Character::new(RATS,"Big rats", "sprites/people/rat.png",2,24);
 
     stage.add_character(peleus).add_character(nerita).add_character(cretien).add_character(scopas)
-        .add_character(cherise).add_character(rats);
+        .add_character(cherise).add_character(theon).add_character(rats);
 
     stage
 }
@@ -579,4 +583,51 @@ fn action_rats(
             area.characters.remove(RATS);
         }
     }
+}
+
+fn character_theon(
+    commands: &mut Commands,
+    mut event_reader: EventReader<CharacterEvent>,
+    mut queue: ResMut<Events<MessageEvent>>,
+    mut flags: ResMut<QuestFlags>,
+    mut journal: ResMut<Journal>,
+    mut state: ResMut<AntheaState>,
+    maptile_query: Query<&MapTile>,){
+        for _e in event_reader.iter().filter(|e| e.0 == THEON) {
+            if flags.has_flag(QUEST_MAIN, ALLOWED_TO_LEAVE){
+                if flags.has_flag(QUEST_MAIN, OPENED_EXIT){
+                    queue.send(MessageEvent::new(
+                        "Good day, my lady.",
+                        MessageStyle::Info,
+                    ));
+                } else {
+                    flags.set_flag(QUEST_MAIN, OPENED_EXIT);
+                    journal.add_entry(QUEST_MAIN,"I can now go out of the palace");
+                    queue.send(MessageEvent::new(
+                        "Peleus told us we could let you go. Careful out there, my lady.",
+                        MessageStyle::Info,
+                    ));
+
+                    let gate_pos=vec![Position { x: -640, y: 928 },Position { x: -672, y: 928 },Position { x: -704, y: 928 }];
+                    for pos in gate_pos.iter(){
+                        if let Some(tes) = state.positions.get_mut(pos){
+                            tes.passable=true;
+                            for e in tes.entities.iter() {
+                                if let Ok(MapTile(layer)) = maptile_query.get(*e){
+                                    if *layer==1{
+                                        commands.despawn_recursive(*e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                queue.send(MessageEvent::new(
+                    " You are forbidden to go outside. I'm sorry my lady, your brother's orders.",
+                    MessageStyle::Info,
+                ));
+               
+            }
+        }
 }

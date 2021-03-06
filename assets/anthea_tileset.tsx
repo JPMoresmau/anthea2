@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.4" tiledversion="1.4.3" name="Anthea Tileset" tilewidth="32" tileheight="32" tilecount="48" columns="0">
+<tileset version="1.4" tiledversion="1.4.3" name="Anthea Tileset" tilewidth="32" tileheight="32" tilecount="51" columns="0">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image width="32" height="32" source="sprites/tiles/brick_gray0.png"/>
@@ -144,5 +144,14 @@
  </tile>
  <tile id="47">
   <image width="32" height="32" source="sprites/tiles/exit_pandemonium.png"/>
+ </tile>
+ <tile id="48">
+  <image width="32" height="32" source="sprites/tiles/gate_open_left.png"/>
+ </tile>
+ <tile id="49">
+  <image width="32" height="32" source="sprites/tiles/gate_open_middle.png"/>
+ </tile>
+ <tile id="50">
+  <image width="32" height="32" source="sprites/tiles/gate_open_right.png"/>
  </tile>
 </tileset>

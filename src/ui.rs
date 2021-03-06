@@ -209,6 +209,10 @@ pub fn setup_ui(
             style: MessageStyle::Title,
         },
         Message {
+            contents: "You are Anthea, youngest daughter of the king of Selaion. Your father left some months ago to wage war and has never returned. Your brother Peleus now reigns on the throne. You have decided to leave in search of your Father to find out his fate.".to_owned(),
+            style: MessageStyle::Info,
+        },
+        Message {
             contents: "Click to start".to_owned(),
             style: MessageStyle::Help,
         },
@@ -315,7 +319,7 @@ fn message_system(
                            needs_close = true;
                         } else {
                             text.sections.push(ts);
-                            if msg.style == MessageStyle::Info {
+                            if msg.style == MessageStyle::Info && me.messages.len()==1 {
                                 ps.justify_content = JustifyContent::FlexEnd;
                             }
                             if sep.is_empty() {
