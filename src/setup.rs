@@ -6,14 +6,14 @@ use crate::world::*;
 
 
 
-pub fn setup_camera(commands: &mut Commands) {
+pub fn setup_camera(mut commands: Commands) {
     commands.spawn(OrthographicCameraBundle::new_2d())
         .with(MainCamera)
         .spawn(UiCameraBundle::default());
 
 }
 
-pub fn setup_map( commands: &mut Commands,
+pub fn setup_map(mut commands: Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
     stage: Res<Area>,
@@ -80,7 +80,7 @@ pub fn setup_map( commands: &mut Commands,
     //println!("Revealed: {:?}",state.revealed);
 }
 
-pub fn setup_items(commands: &mut Commands,
+pub fn setup_items(mut commands: Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
     stage: Res<Area>,
@@ -114,7 +114,7 @@ pub fn setup_items(commands: &mut Commands,
     
 }
 
-pub fn setup_people( commands: &mut Commands,
+pub fn setup_people(mut commands: Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
     stage: Res<Area>,

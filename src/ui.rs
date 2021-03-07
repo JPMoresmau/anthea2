@@ -127,7 +127,7 @@ const DIMENSIONS: &[((f32, f32), (f32, f32))] = &[
 ];
 
 pub fn setup_ui(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut handles: ResMut<AntheaHandles>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -146,7 +146,7 @@ pub fn setup_ui(
     let texture_atlas_handle = texture_atlases.add(atlas);
     handles.ui_texture_atlas_handle = texture_atlas_handle.clone();
     for (i, part) in MessageFramePart::iter().enumerate() {
-        spawn_frame(commands, texture_atlas_handle.clone(), part, i);
+        spawn_frame(&mut commands, texture_atlas_handle.clone(), part, i);
     }
 
     commands
@@ -272,21 +272,19 @@ fn build_section(msg: &Message, font: Handle<Font>, sep: &str) -> TextSection {
 
 fn message_system(
     handles: Res<AntheaHandles>,
-    commands: &mut Commands,
+    mut commands: Commands,
     mut event_reader: EventReader<MessageEvent>,
     mut text_query: Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
     mut style_query: Query<&mut Style, Without<Text>>,
-    bg_query: Query<(&Background, &mut Visible)>,
-    part_query: Query<(&MessageFramePart, &mut Visible)>,
+    msg_query: QuerySet<( Query<(&Background, &mut Visible)>,Query<(&MessageFramePart, &mut Visible)> )>,
     nav_query: Query<(&Draw, &CalculatedSize, &Transform, &Parent), With<NavigationPart>>,
     menu_query: Query<Entity, With<InteractionItem>>,
     table_query: Query<Entity, With<TableItem>>,
 ) {
     if let Some(me) = event_reader.iter().next() {
         clear(
-            commands,
-            bg_query,
-            part_query,
+            &mut commands,
+            msg_query,
             &mut text_query,
             nav_query,
             menu_query,
@@ -480,23 +478,23 @@ fn build_navigation(parent: &mut ChildBuilder,handles: &Res<AntheaHandles>,(back
 }
 
 fn message_decoration_system(
-    text_query: Query<(&Text, &CalculatedSize, &Transform, &MessageText), Mutated<CalculatedSize>>,
-    item_query: Query<(&Text, &CalculatedSize, &Transform), With<InteractionItem>>,
-    nav_query: Query<(&Draw, &CalculatedSize, &Transform), With<NavigationPart>>,
+    text_query: Query<(&Text, &CalculatedSize, &Transform, &MessageText), (Mutated<CalculatedSize>,Without<Background>,Without<MessageFramePart>)>,
+    item_query: Query<(&Text, &CalculatedSize, &Transform), (With<InteractionItem>,Without<Background>,Without<MessageFramePart>)>,
+    nav_query: Query<(&Draw, &CalculatedSize, &Transform), (With<NavigationPart>,Without<Background>,Without<MessageFramePart>)>,
     table_query: Query<(&Node,&Children), With<TableItem>>,
-    cs_query: Query<(&Draw, &CalculatedSize, &Transform)>,
-    mut bg_query: Query<(
+    cs_query: Query<(&Draw, &CalculatedSize, &Transform),(Without<Background>,Without<MessageFramePart>)>,
+    mut msg_query: QuerySet<(Query<(
         &Background,
         &mut Visible,
         &mut Transform,
         &mut GlobalTransform,
     )>,
-    mut part_query: Query<(
+    Query<(
         &MessageFramePart,
         &mut Visible,
         &mut Transform,
         &mut GlobalTransform,
-    )>,
+    )>)>,
 ) {
     for (t, cs, ttr,_mt) in text_query.iter() {
         if t.sections.len() > 0 && t.sections[0].value.len() > 0 {
@@ -538,7 +536,7 @@ fn message_decoration_system(
             let h = cs.size.height + 20.0 + add_y;
 
             let mut z = 0.5;
-            for (_b, mut v, mut tr, mut gtr) in bg_query.iter_mut() {
+            for (_b, mut v, mut tr, mut gtr) in msg_query.q0_mut().iter_mut() {
                 v.is_visible = true;
                 tr.scale.x = (w + 20.0) / 512.0;
                 tr.scale.y = (h + 20.0) / 512.0;
@@ -550,7 +548,7 @@ fn message_decoration_system(
             }
             z = 0.6;
             //ttr.translation.z=z+1.0;
-            for (fp, mut v, mut tr, mut gtr) in part_query.iter_mut() {
+            for (fp, mut v, mut tr, mut gtr) in msg_query.q1_mut().iter_mut() {
                 v.is_visible = true;
 
                 match fp {
@@ -610,11 +608,11 @@ fn message_decoration_system(
     }
 }
 
+
 fn message_clear_system(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut event_reader: EventReader<ClearMessage>,
-    bg_query: Query<(&Background, &mut Visible)>,
-    part_query: Query<(&MessageFramePart, &mut Visible)>,
+    msg_query: QuerySet<( Query<(&Background, &mut Visible)>,Query<(&MessageFramePart, &mut Visible)> )>,
     mut text_query: Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
     nav_query: Query<(&Draw, &CalculatedSize, &Transform, &Parent), With<NavigationPart>>,
     menu_query: Query<Entity, With<InteractionItem>>,
@@ -623,9 +621,8 @@ fn message_clear_system(
     if let Some(_ev) = event_reader.iter().next() {
         //println!("clear");
         clear(
-            commands,
-            bg_query,
-            part_query,
+            &mut commands,
+            msg_query,
             &mut text_query,
             nav_query,
             menu_query,
@@ -636,17 +633,16 @@ fn message_clear_system(
 
 fn clear(
     commands: &mut Commands,
-    mut bg_query: Query<(&Background, &mut Visible)>,
-    mut part_query: Query<(&MessageFramePart, &mut Visible)>,
+    mut msg_query: QuerySet<( Query<(&Background, &mut Visible)>,Query<(&MessageFramePart, &mut Visible)> )>,
     text_query: &mut Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
     nav_query: Query<(&Draw, &CalculatedSize, &Transform, &Parent), With<NavigationPart>>,
     menu_query: Query<Entity, With<InteractionItem>>,
     table_query: Query<Entity, With<TableItem>>,
 ) {
-    for (_b, mut v) in bg_query.iter_mut() {
+    for (_b, mut v) in msg_query.q0_mut().iter_mut() {
         v.is_visible = false;
     }
-    for (_p, mut v) in part_query.iter_mut() {
+    for (_p, mut v) in msg_query.q1_mut().iter_mut() {
         v.is_visible = false;
     }
     for (_m, mut t, _s, _p) in text_query.iter_mut() {

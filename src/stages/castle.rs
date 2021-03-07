@@ -546,7 +546,7 @@ fn character_rats(
 }
 
 fn action_rats(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut event_reader: EventReader<MenuItemEvent>,
     mut queue: ResMut<Events<MessageEvent>>,
     mut talents: ResMut<Talents>,
@@ -588,7 +588,7 @@ fn action_rats(
 }
 
 fn character_theon(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut event_reader: EventReader<CharacterEvent>,
     mut queue: ResMut<Events<MessageEvent>>,
     mut flags: ResMut<QuestFlags>,

@@ -197,7 +197,7 @@ fn player_movement_system(
     }
 }
 
-fn pickup_item(commands: &mut Commands,
+fn pickup_item(mut commands: Commands,
     state: Res<AntheaState>,
     mut inventory: ResMut<Inventory>,
     item_query: Query<(Entity, &Item)>,
