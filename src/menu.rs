@@ -1,6 +1,8 @@
+use std::{fs::File, io::Write, path::Path};
+
 use crate::base::*;
 use crate::ui::*;
-use bevy::prelude::*;
+use bevy::{prelude::*, reflect::TypeRegistry};
 
 pub struct MenuPlugin;
 
@@ -9,6 +11,10 @@ pub const JOURNAL: &str = "journal";
 pub const INVENTORY: &str = "inventory";
 pub const TALENTS: &str = "talents";
 pub const SPELLS: &str = "spells";
+pub const SYSTEM: &str = "system";
+pub const HELP: &str = "help";
+pub const SAVE: &str = "save";
+pub const LOAD: &str = "load";
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct Menus {
@@ -85,6 +91,27 @@ impl MenuItem {
     }
 }
 
+
+fn help_item() -> MenuItem {
+    MenuItem::new(HELP, "Help")
+}
+
+fn save_item() -> MenuItem {
+    MenuItem::new(SAVE, "Save")
+}
+
+fn load_item() -> MenuItem {
+    MenuItem::new(LOAD, "Load")
+}
+
+pub fn system_menu() -> Menu {
+    Menu::new(
+        SYSTEM,
+        "System",
+        vec![help_item(), save_item(), load_item()],
+    )
+}
+
 fn journal_item() -> MenuItem {
     MenuItem::new(JOURNAL, "Journal")
 }
@@ -108,6 +135,10 @@ pub fn main_menu() -> Menu {
         "Anthea",
         vec![journal_item(), inventory_item(), spells_item(), talents_item()],
     )
+}
+
+fn help_menu() -> Menu {
+    Menu::new(HELP, "Help", vec![MenuItem::new("", "Click on your character in the middle of screen for journal, inventory, spells and talents.\nClick everywhere else to see a description.\nUse arrow keys to move.\nMove over an item to pick it up, move into characters and other things to interact.")])
 }
 
 fn journal_menu(journal: &Journal, menus: &Menus) -> Menu {
@@ -168,12 +199,16 @@ impl Plugin for MenuPlugin {
             .on_state_update(STAGE, GameState::Menu, inventory_event.system())
             .on_state_update(STAGE, GameState::Menu, spells_event.system())
             .on_state_update(STAGE, GameState::Menu, talents_event.system())
+            .on_state_update(STAGE, GameState::Menu, help_event.system())
+            .on_state_update(STAGE, GameState::Menu, save_event.system())
             .on_state_update(STAGE, GameState::Menu, menu_close.system())
-            .on_state_update(STAGE, GameState::Menu, close_menu.system());
+            .on_state_update(STAGE, GameState::Menu, close_menu.system())
+            .on_state_enter(STAGE, GameState::Save, save.exclusive_system());
+            
     }
 }
 
-fn show_menu(mut queue: ResMut<Events<MessageEvent>>, menu: &Menu) {
+fn show_menu(mut queue: EventWriter<MessageEvent>, menu: &Menu) {
     //clearm.send(ClearMessage);
     let mut msgs = vec![Message::new(&menu.title, MessageStyle::MenuTitle)];
     if let Some((backward, forward)) = menu.navigation {
@@ -198,7 +233,7 @@ fn show_menu(mut queue: ResMut<Events<MessageEvent>>, menu: &Menu) {
     queue.send(MessageEvent::new_multi(msgs));
 }
 
-fn push_menu(queue: ResMut<Events<MessageEvent>>, mut menus: ResMut<Menus>, menu: Menu) {
+fn push_menu(queue: EventWriter<MessageEvent>, mut menus: ResMut<Menus>, menu: Menu) {
     show_menu(queue, &menu);
     menus.push(menu);
 }
@@ -224,11 +259,11 @@ fn push_menu(queue: ResMut<Events<MessageEvent>>, mut menus: ResMut<Menus>, menu
 
 fn click_system(
     item_query: Query<(&Interaction, &Text, &InteractionItem), Mutated<Interaction>>,
-    mut clearm: ResMut<Events<ClearMessage>>,
-    queue: ResMut<Events<MessageEvent>>,
+    mut clearm: EventWriter<ClearMessage>,
+    queue: EventWriter<MessageEvent>,
     mut appstate: ResMut<State<GameState>>,
     mut menus: ResMut<Menus>,
-    mut menuqueue: ResMut<Events<MenuItemEvent>>,
+    mut menuqueue: EventWriter<MenuItemEvent>,
 ) {
     if let Some((interaction, _txt, item)) = item_query.iter().next() {
         if *interaction == Interaction::Clicked {
@@ -254,7 +289,7 @@ fn click_system(
 fn click_nav_system(
     item_query: Query<(&Interaction, &TextureAtlasSprite, &NavigationPart), Mutated<Interaction>>,
     mut menus: ResMut<Menus>,
-    queue: ResMut<Events<MessageEvent>>,
+    queue: EventWriter<MessageEvent>,
     journal: Res<Journal>,
 ) {
     if let Some((interaction, _txt, item)) = item_query.iter().next() {
@@ -275,14 +310,13 @@ fn click_nav_system(
 
 fn close_menu(
     keyboard_input: Res<Input<KeyCode>>,
-    mut clearm: ResMut<Events<ClearMessage>>,
-    queue: ResMut<Events<MessageEvent>>,
+    mut clearm: EventWriter<ClearMessage>,
+    queue: EventWriter<MessageEvent>,
     mut appstate: ResMut<State<GameState>>,
     mut menus: ResMut<Menus>,
 ) {
     //for event in keyboard_input_events.iter() {
     if keyboard_input.just_released(KeyCode::Escape) {
-        println!("Escape");
         menus.pop();
         if let Some(m) = menus.menus.last() {
             show_menu(queue, m);
@@ -311,7 +345,7 @@ pub struct CloseMenuEvent;
 fn menu_start(
     mut appstate: ResMut<State<GameState>>,
     mut event_reader: EventReader<MenuEvent>,
-    queue: ResMut<Events<MessageEvent>>,
+    queue: EventWriter<MessageEvent>,
     mut menus: ResMut<Menus>,
 ) {
     if let Some(me) = event_reader.iter().next() {
@@ -343,7 +377,7 @@ fn journal_event(
     mut event_reader: EventReader<MenuItemEvent>,
     journal: Res<Journal>,
     menus: ResMut<Menus>,
-    queue: ResMut<Events<MessageEvent>>,
+    queue: EventWriter<MessageEvent>,
 ) {
     if let Some(_e) = event_reader
         .iter()
@@ -359,7 +393,7 @@ fn inventory_event(
     mut event_reader: EventReader<MenuItemEvent>,
     inventory: Res<Inventory>,
     menus: ResMut<Menus>,
-    queue: ResMut<Events<MessageEvent>>,
+    queue: EventWriter<MessageEvent>,
 ) {
     if let Some(_e) = event_reader
         .iter()
@@ -375,7 +409,7 @@ fn spells_event(
     mut event_reader: EventReader<MenuItemEvent>,
     spells: Res<Spells>,
     menus: ResMut<Menus>,
-    queue: ResMut<Events<MessageEvent>>,
+    queue: EventWriter<MessageEvent>,
 ) {
     if let Some(_e) = event_reader
         .iter()
@@ -392,7 +426,7 @@ fn talents_event(
     mut event_reader: EventReader<MenuItemEvent>,
     talents: Res<Talents>,
     menus: ResMut<Menus>,
-    queue: ResMut<Events<MessageEvent>>,
+    queue: EventWriter<MessageEvent>,
 ) {
     if let Some(_e) = event_reader
         .iter()
@@ -402,4 +436,50 @@ fn talents_event(
         let m = talents_menu(&talents);
         push_menu(queue, menus, m);
     }
+}
+
+
+fn help_event(
+    mut event_reader: EventReader<MenuItemEvent>,
+    menus: ResMut<Menus>,
+    queue: EventWriter<MessageEvent>,
+) {
+    if let Some(_e) = event_reader
+        .iter()
+        .filter(|e| e.menu == SYSTEM && e.item == HELP)
+        .next()
+    {
+        let m = help_menu();
+        push_menu(queue, menus, m);
+    }
+}
+
+fn save_event(
+    mut event_reader: EventReader<MenuItemEvent>,
+    mut appstate: ResMut<State<GameState>>,
+) {
+    if let Some(_e) = event_reader
+        .iter()
+        .filter(|e| e.menu == SYSTEM && e.item == SAVE)
+        .next()
+    {
+        appstate.set_next(GameState::Save).unwrap();
+    }
+}
+
+fn save( world: &mut World){
+    /*let type_registry = world.get_resource::<TypeRegistry>().unwrap();
+    let scene = DynamicScene::from_world(&world, &type_registry);
+    
+    // Scenes can be serialized like this:
+    //println!("{}", scene.serialize_ron(&type_registry).unwrap());
+    let s=scene.serialize_ron(&type_registry).unwrap();
+    write!(File::create(&Path::new("save.ron")).unwrap(),"{}",s).unwrap();
+    */
+    let mut appstate=world.get_resource_mut::<State<GameState>>().unwrap();
+    appstate.set_next(GameState::Running).unwrap();
+    let mut menus=world.get_resource_mut::<Menus>().unwrap();
+    menus.clear();
+    let mut clearm=world.get_resource_mut::<bevy::app::Events<ClearMessage>>().unwrap();
+    clearm.send(ClearMessage);
 }

@@ -138,8 +138,8 @@ fn affordance_mirror(
     inventory: Res<Inventory>,
     flags: Res<QuestFlags>,
     mut event_reader: EventReader<AffordanceEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut menu: ResMut<Events<MenuEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut menu: EventWriter<MenuEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == MIRROR) {
         if inventory.contains_item(SCISSORS) {
@@ -164,8 +164,8 @@ fn affordance_fountain(
     inventory: Res<Inventory>,
     flags: Res<QuestFlags>,
     mut event_reader: EventReader<AffordanceEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut menu: ResMut<Events<MenuEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut menu: EventWriter<MenuEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == FOUNTAIN) {
         if inventory.contains_item(SCISSORS) {
@@ -193,11 +193,11 @@ fn action_fountain(
     mut event_reader: EventReader<MenuItemEvent>,
     mut inventory: ResMut<Inventory>,
     mut talents: ResMut<Talents>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut journal: ResMut<Events<JournalEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut journal: EventWriter<JournalEvent>,
     mut flags: ResMut<QuestFlags>,
-    mut close_menu: ResMut<Events<CloseMenuEvent>>,
-    mut body_change: ResMut<Events<BodyChangeEvent>>,
+    mut close_menu: EventWriter<CloseMenuEvent>,
+    mut body_change: EventWriter<BodyChangeEvent>,
 ) {
     if let Some(_e) = event_reader
         .iter()
@@ -227,11 +227,11 @@ fn action_mirror(
     mut event_reader: EventReader<MenuItemEvent>,
     mut inventory: ResMut<Inventory>,
     mut talents: ResMut<Talents>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut journal: ResMut<Events<JournalEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut journal: EventWriter<JournalEvent>,
     mut flags: ResMut<QuestFlags>,
-    mut close_menu: ResMut<Events<CloseMenuEvent>>,
-    mut body_change: ResMut<Events<BodyChangeEvent>>,
+    mut close_menu: EventWriter<CloseMenuEvent>,
+    mut body_change: EventWriter<BodyChangeEvent>,
 ) {
     if let Some(_e) = event_reader
         .iter()
@@ -257,8 +257,8 @@ fn action_mirror(
 fn character_peleus(
     mut flags: ResMut<QuestFlags>,
     mut event_reader: EventReader<CharacterEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut journal: ResMut<Events<JournalEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut journal:EventWriter<JournalEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == PELEUS) {
         if flags.has_flag(QUEST_MAIN, HAIR_CUT){
@@ -300,8 +300,8 @@ fn character_nerita(
     flags: Res<QuestFlags>,
     inventory: Res<Inventory>,
     mut event_reader: EventReader<CharacterEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut menu: ResMut<Events<MenuEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut menu: EventWriter<MenuEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == NERITA) {
         if inventory.contains_item(SCISSORS) {
@@ -339,11 +339,11 @@ fn action_nerita(
     mut event_reader: EventReader<MenuItemEvent>,
     mut inventory: ResMut<Inventory>,
     mut talents: ResMut<Talents>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut journal: ResMut<Events<JournalEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut journal: EventWriter<JournalEvent>,
     mut flags: ResMut<QuestFlags>,
-    mut close_menu: ResMut<Events<CloseMenuEvent>>,
-    mut body_change: ResMut<Events<BodyChangeEvent>>,
+    mut close_menu: EventWriter<CloseMenuEvent>,
+    mut body_change: EventWriter<BodyChangeEvent>,
 ) {
     if let Some(e) = event_reader
         .iter()
@@ -382,10 +382,10 @@ fn action_nerita(
 
 fn character_cretien(
     mut event_reader: EventReader<CharacterEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
+    mut queue: EventWriter<MessageEvent>,
     mut inventory: ResMut<Inventory>,
     mut spells: ResMut<Spells>,
-    mut journal: ResMut<Events<JournalEvent>>,
+    mut journal: EventWriter<JournalEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == CRETIEN) {
         if inventory.contains_item(SCROLL) {
@@ -408,10 +408,10 @@ fn character_cretien(
 
 fn character_scopas(
     mut event_reader: EventReader<CharacterEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
+    mut queue: EventWriter<MessageEvent>,
     mut talents: ResMut<Talents>,
     mut flags: ResMut<QuestFlags>,
-    mut journal: ResMut<Events<JournalEvent>>,
+    mut journal: EventWriter<JournalEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == SCOPAS) {
         if talents.weapons>0 {
@@ -443,8 +443,8 @@ fn character_scopas(
 fn consume_sword(
     mut event_reader: EventReader<ItemEvent>,
     mut talents: ResMut<Talents>,
-    mut body_change: ResMut<Events<BodyChangeEvent>>,
-    mut queue: ResMut<Events<MessageEvent>>,
+    mut body_change: EventWriter<BodyChangeEvent>,
+    mut queue: EventWriter<MessageEvent>,
 ){
     for _e in event_reader.iter().filter(|e| e.0 == SWORD) {
         body_change.send(BodyChangeEvent::new(PlayerPart::RightHand,"sprites/people/short_sword.png"));
@@ -455,10 +455,10 @@ fn consume_sword(
 
 fn character_cherise(
     mut event_reader: EventReader<CharacterEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
+    mut queue: EventWriter<MessageEvent>,
     mut flags: ResMut<QuestFlags>,
     mut journal: ResMut<Journal>,
-    mut journale: ResMut<Events<JournalEvent>>,
+    mut journale: EventWriter<JournalEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == CHERISE) {
         if flags.has_flag(QUEST_RATS, QUEST_STARTED){
@@ -497,8 +497,8 @@ fn character_cherise(
 
 fn character_rats(
     mut event_reader: EventReader<CharacterEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut menu: ResMut<Events<MenuEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut menu: EventWriter<MenuEvent>    ,
     talents: Res<Talents>,
     spells: Res<Spells>,
     flags: Res<QuestFlags>,
@@ -548,11 +548,11 @@ fn character_rats(
 fn action_rats(
     mut commands: Commands,
     mut event_reader: EventReader<MenuItemEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
+    mut queue: EventWriter<MessageEvent>,
     mut talents: ResMut<Talents>,
     mut flags: ResMut<QuestFlags>,
     mut area: ResMut<Area>,
-    mut close_menu: ResMut<Events<CloseMenuEvent>>,
+    mut close_menu: EventWriter<CloseMenuEvent>,
     character_query: Query<(Entity, &Character)>,){
     if let Some(e) = event_reader
         .iter()
@@ -590,9 +590,9 @@ fn action_rats(
 fn character_theon(
     mut commands: Commands,
     mut event_reader: EventReader<CharacterEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
+    mut queue: EventWriter<MessageEvent>,
     mut flags: ResMut<QuestFlags>,
-    mut journal: ResMut<Events<JournalEvent>>,
+    mut journal: EventWriter<JournalEvent>,
     mut state: ResMut<AntheaState>,
     maptile_query: Query<&MapTile>,
     mut area: ResMut<Area>,){
@@ -644,7 +644,7 @@ fn affordance_outside(
     talents: Res<Talents>,
     flags: Res<QuestFlags>,
     mut event_reader: EventReader<AffordanceEvent>,
-    mut queue: ResMut<Events<MessageEvent>>,
+    mut queue: EventWriter<MessageEvent>,
     mut state: ResMut<State<GameState>>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0.starts_with(OUTSIDE)) {

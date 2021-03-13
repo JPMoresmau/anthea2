@@ -1,4 +1,3 @@
-use bevy::text::CalculatedSize;
 use bevy::{prelude::*, ui::FocusPolicy};
 
 use strum::IntoEnumIterator;
@@ -131,7 +130,7 @@ pub fn setup_ui(
     mut handles: ResMut<AntheaHandles>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut queue: ResMut<Events<MessageEvent>>,
+    mut queue: EventWriter<MessageEvent>,
     mut state: ResMut<State<GameState>>,
 ) {
     let mut atlas = TextureAtlas::new_empty(handles.ui_handle.clone(), Vec2::new(1024.0, 666.0));

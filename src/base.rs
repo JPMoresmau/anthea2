@@ -69,6 +69,7 @@ pub enum GameState {
     Running,
     Menu,
     Pause,
+    Save,
     End,
 }
 
@@ -378,3 +379,6 @@ impl BodyChangeEvent {
         Self{part:part,sprite:sprite.into()}
     }
 }
+
+#[derive(Debug,Clone, Default)]
+pub struct Help;

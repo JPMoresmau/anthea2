@@ -131,9 +131,9 @@ fn player_movement_system(
     mut state: ResMut<AntheaState>,
     stage: ResMut<Area>,
     mut sprite_query: Query<(&mut Transform, &mut Visible),Or<(With<MapTile>,With<Item>,With<Character>)>>,
-    mut msg: ResMut<Events<ClearMessage>>,
-    mut ev_affordance: ResMut<Events<AffordanceEvent>>,
-    mut ev_character: ResMut<Events<CharacterEvent>>,
+    mut msg: EventWriter<ClearMessage>,
+    mut ev_affordance: EventWriter<AffordanceEvent>,
+    mut ev_character: EventWriter<CharacterEvent>,
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
 ){
@@ -202,8 +202,8 @@ fn pickup_item(mut commands: Commands,
     mut inventory: ResMut<Inventory>,
     item_query: Query<(Entity, &Item)>,
     mut stage: ResMut<Area>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut item_queue: ResMut<Events<ItemEvent>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut item_queue: EventWriter<ItemEvent>,
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
     ){
@@ -259,10 +259,11 @@ fn cursor_system(
 }
 
 fn start_system(mouse_button_input: Res<Input<MouseButton>>,
-    mut clearm: ResMut<Events<ClearMessage>>,
+    mut clearm: EventWriter<ClearMessage>,
     mut appstate: ResMut<State<GameState>>,
     mut state: ResMut<AntheaState>,
-    mut sprite_query: Query<(&Transform, &mut Visible),Or<(With<MapTile>,With<Item>,With<Character>)>>,
+    mut sprite_query: Query<(&Transform, &mut Visible),(Without<Help>,Or<(With<MapTile>,With<Item>,With<Character>)>)>,
+    mut help_query: Query<&mut Visible,With<Help>>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
         clearm.send(ClearMessage); 
@@ -273,24 +274,30 @@ fn start_system(mouse_button_input: Res<Input<MouseButton>>,
                 let pos = state.map_position.to_relative(&Position::new(transform.translation.x as i32, transform.translation.y as i32));
                 //println!("Revealing: {:?}",pos);
                 state.revealed.insert(pos);
-                
             }
         }
-       
+        for mut vis in &mut help_query.iter_mut() {
+            vis.is_visible=true;
+        }
     }
 }
 
 fn click_system(mouse_button_input: Res<Input<MouseButton>>,
     location: Res<MouseLocation>,
-    mut queue: ResMut<Events<MessageEvent>>,
-    mut clearm: ResMut<Events<ClearMessage>>,
+    mut queue: EventWriter<MessageEvent>,
+    mut clearm: EventWriter<ClearMessage>,
     state: Res<AntheaState>,
     stage: Res<Area>,
-    mut menu: ResMut<Events<MenuEvent>>,
+    mut menu: EventWriter<MenuEvent>,
     ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
 
         //println!("left mouse currently pressed as: {} {}",location.x,location.y);
+        if location.x< -SCREEN_WIDTH as f32/2.0+SPRITE_SIZE as f32 
+            && location.y> SCREEN_HEIGHT as f32/2.0-SPRITE_SIZE as f32 {
+                menu.send(MenuEvent::new(system_menu()));
+                return;
+            }
 
         let rel_x = location.x-(state.map_position.x as f32);
         let rel_y = -(location.y-(state.map_position.y as f32)) ;
@@ -354,7 +361,7 @@ fn body_change(
                         eprintln!("Could not find handle for {}",e.sprite);
                     }
                 } else {
-                    eprintln!("Could not find handle for boyd parts");
+                    eprintln!("Could not find handle for body parts");
                 }
             }
         }

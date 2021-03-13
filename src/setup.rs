@@ -112,6 +112,17 @@ pub fn setup_items(mut commands: Commands,
         .with(item.clone());
     }
     
+    let item_handle = asset_server.get_handle("sprites/items/help.png");
+    let item_index = texture_atlas.get_texture_index(&item_handle).unwrap();
+    let pos=Position{x:-SCREEN_WIDTH/2+SPRITE_SIZE/2,y:SCREEN_HEIGHT/2-SPRITE_SIZE/2}.to_vec3_z(0.3);
+    commands.spawn(SpriteSheetBundle {
+        sprite: TextureAtlasSprite::new(item_index as u32),
+        texture_atlas: atlas_handle.clone(),
+        transform: Transform::from_translation(pos),
+        visible: Visible{is_transparent:true,is_visible:false},
+        ..Default::default()
+    }).with(Help);
+
 }
 
 pub fn setup_people(mut commands: Commands,
