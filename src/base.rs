@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use std::{ collections::{HashMap, HashSet}};
 
 use strum_macros::EnumIter; 
+use serde::{Serialize, Deserialize};
 
 use crate::tiled::*;
 
@@ -38,7 +39,7 @@ pub struct AntheaHandles {
 }
 
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Serialize, Deserialize)]
 pub struct AntheaState {
     //player_position: Position,
     pub map_position: Position,
@@ -70,6 +71,7 @@ pub enum GameState {
     Menu,
     Pause,
     Save,
+    Load,
     End,
 }
 
@@ -79,7 +81,7 @@ pub struct MouseLocation {
     pub y: f32,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Serialize, Deserialize)]
 pub struct TileEntityState {
     pub entities:Vec<Entity>,
     pub passable: bool,
@@ -92,7 +94,7 @@ impl Default for TileEntityState {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,Serialize, Deserialize)]
 pub struct Position {
     pub x: i32,
     pub y: i32,
@@ -143,7 +145,7 @@ impl Position {
     
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,Serialize, Deserialize)]
 pub struct Dimension {
     topleft: Position,
     bottomright: Position,
@@ -161,10 +163,10 @@ impl Dimension {
 
 }
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd,Serialize, Deserialize)]
 pub struct MapTile(pub usize);
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, EnumIter)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, EnumIter,Serialize, Deserialize)]
 pub enum PlayerPart {
     Body,
     Pants,
@@ -174,14 +176,14 @@ pub enum PlayerPart {
 }
 
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd,Serialize, Deserialize)]
 pub struct Player ;
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd,Serialize, Deserialize)]
 pub struct MainCamera;
 
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq,Serialize, Deserialize)]
 pub struct Journal {
     pub quests: HashMap<String,Quest>,
     pub entries: Vec<JournalEntry>,
@@ -212,7 +214,7 @@ impl Journal {
     } 
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord,Serialize, Deserialize)]
 pub struct JournalEntry {
     pub quest: String,
     pub text: String,
@@ -224,7 +226,7 @@ impl JournalEntry {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord,Serialize, Deserialize)]
 pub struct JournalEvent{
     pub quest: String,
     pub text: String,
@@ -236,7 +238,7 @@ impl JournalEvent {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord,Serialize, Deserialize)]
 pub struct Quest {
     pub code: String,
     pub text: String,
@@ -248,7 +250,7 @@ impl Quest {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Serialize, Deserialize)]
 pub struct Item {
     pub name: String,
     pub description: String,
@@ -270,7 +272,7 @@ impl Item {
     }
 }
 
-#[derive(Debug,Clone, Default)]
+#[derive(Debug,Clone, Default,Serialize, Deserialize)]
 pub struct Inventory {
     pub items: Vec<Item>,
 }
@@ -303,14 +305,14 @@ pub fn sprite_dimensions(x1: i32, y1: i32, x2: i32, y2: i32) -> Dimension {
     Dimension::new(Position::new(x1*SPRITE_SIZE-SPRITE_SIZE/2, y1*SPRITE_SIZE-SPRITE_SIZE/2),Position::new(x2*SPRITE_SIZE+SPRITE_SIZE/2, y2*SPRITE_SIZE+SPRITE_SIZE/2))
 }
 
-#[derive(Debug,Clone, Default)]
+#[derive(Debug,Clone, Default,Serialize, Deserialize)]
 pub struct Talents{
     pub animals: u32,
     pub people: u32,
     pub weapons: u32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default,Serialize, Deserialize)]
 pub struct QuestFlags{
     flags: HashSet<(String,String)>,
 }
@@ -331,7 +333,7 @@ impl QuestFlags {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Serialize, Deserialize)]
 pub struct Spell {
     pub name: String,
     pub description: String,
@@ -345,7 +347,7 @@ impl Spell {
 }
 
 
-#[derive(Debug,Clone, Default)]
+#[derive(Debug,Clone, Default,Serialize, Deserialize)]
 pub struct Spells {
     pub spells: Vec<Spell>,
 }
@@ -369,6 +371,7 @@ impl Spells {
     }
 }
 
+#[derive(Debug,Clone, Serialize, Deserialize)]
 pub struct BodyChangeEvent {
     pub part: PlayerPart,
     pub sprite: String,
@@ -380,5 +383,12 @@ impl BodyChangeEvent {
     }
 }
 
-#[derive(Debug,Clone, Default)]
+#[derive(Debug,Clone, Default,Serialize, Deserialize)]
 pub struct Help;
+
+#[derive(Debug,Clone, Default,Serialize, Deserialize)]
+pub struct EventMemory {
+    pub body: Vec<BodyChangeEvent>,
+}
+
+

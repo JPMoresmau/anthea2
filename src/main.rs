@@ -56,6 +56,7 @@ impl Plugin for AntheaPlugin {
             .insert_resource(Talents::default())
             .insert_resource(QuestFlags::default())
             .insert_resource(Spells::default())
+            .insert_resource(EventMemory::default())
             .add_event::<AffordanceEvent>()
             .add_event::<CharacterEvent>()
             .add_event::<ItemEvent>()
@@ -344,6 +345,7 @@ fn body_change(
     mut event_reader: EventReader<BodyChangeEvent>,
     asset_server: Res<AssetServer>,
     texture_atlases: Res<Assets<TextureAtlas>>,
+    mut event_memory: ResMut<EventMemory>,
     mut sprite_query: Query<(&mut TextureAtlasSprite,&Handle<TextureAtlas>,&PlayerPart)>,
 ){
     if let Some(e) = event_reader
@@ -357,6 +359,7 @@ fn body_change(
                     let hair_handle = asset_server.get_handle(e.sprite.as_str());
                     if let Some(hair_index) = texture_atlas.get_texture_index(&hair_handle) {
                         sprite.index=hair_index as u32;
+                        event_memory.body.push(e.clone());
                     } else {
                         eprintln!("Could not find handle for {}",e.sprite);
                     }

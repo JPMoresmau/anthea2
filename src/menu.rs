@@ -1,8 +1,11 @@
-use std::{fs::File, io::Write, path::Path};
+use std::{collections::{HashMap, HashSet}, fs::File, io::{Read, Write}, path::Path};
 
-use crate::base::*;
+use crate::{base::*, world::{Area, Character}};
 use crate::ui::*;
-use bevy::{prelude::*, reflect::TypeRegistry};
+use bevy::prelude::*;
+use serde::{Serialize, Deserialize};
+use ron::ser::to_string;
+use ron::de::from_str;
 
 pub struct MenuPlugin;
 
@@ -201,9 +204,11 @@ impl Plugin for MenuPlugin {
             .on_state_update(STAGE, GameState::Menu, talents_event.system())
             .on_state_update(STAGE, GameState::Menu, help_event.system())
             .on_state_update(STAGE, GameState::Menu, save_event.system())
+            .on_state_update(STAGE, GameState::Menu, load_event.system())
             .on_state_update(STAGE, GameState::Menu, menu_close.system())
             .on_state_update(STAGE, GameState::Menu, close_menu.system())
-            .on_state_enter(STAGE, GameState::Save, save.exclusive_system());
+            .on_state_enter(STAGE, GameState::Save, save.exclusive_system())
+            .on_state_enter(STAGE, GameState::Load, load.exclusive_system());
             
     }
 }
@@ -468,18 +473,164 @@ fn save_event(
 }
 
 fn save( world: &mut World){
-    /*let type_registry = world.get_resource::<TypeRegistry>().unwrap();
-    let scene = DynamicScene::from_world(&world, &type_registry);
-    
-    // Scenes can be serialized like this:
-    //println!("{}", scene.serialize_ron(&type_registry).unwrap());
-    let s=scene.serialize_ron(&type_registry).unwrap();
-    write!(File::create(&Path::new("save.ron")).unwrap(),"{}",s).unwrap();
-    */
+    let ss = SaveState::from_world(world);
+    let save_string=to_string(&ss).unwrap();
+    write!(File::create(&Path::new("save.ron")).unwrap(),"{}",save_string).unwrap();
+
     let mut appstate=world.get_resource_mut::<State<GameState>>().unwrap();
     appstate.set_next(GameState::Running).unwrap();
     let mut menus=world.get_resource_mut::<Menus>().unwrap();
     menus.clear();
     let mut clearm=world.get_resource_mut::<bevy::app::Events<ClearMessage>>().unwrap();
     clearm.send(ClearMessage);
+}
+
+fn load_event(
+    mut event_reader: EventReader<MenuItemEvent>,
+    mut appstate: ResMut<State<GameState>>,
+) {
+    if let Some(_e) = event_reader
+        .iter()
+        .filter(|e| e.menu == SYSTEM && e.item == LOAD)
+        .next()
+    {
+        appstate.set_next(GameState::Load).unwrap();
+    }
+}
+
+
+fn load( world: &mut World){
+    let mut s=String::new();
+    File::open(&Path::new("save.ron")).unwrap().read_to_string(&mut s).unwrap();
+    let ss:SaveState=from_str(&s).unwrap();
+    ss.into_world(world);
+    let mut appstate=world.get_resource_mut::<State<GameState>>().unwrap();
+    appstate.set_next(GameState::Running).unwrap();
+    let mut menus=world.get_resource_mut::<Menus>().unwrap();
+    menus.clear();
+    let mut clearm=world.get_resource_mut::<bevy::app::Events<ClearMessage>>().unwrap();
+    clearm.send(ClearMessage);
+}
+
+#[derive(Debug,Clone, Default,Serialize, Deserialize)]
+pub struct SaveState {
+    state: AntheaState,
+    journal: Journal,
+    inventory: Inventory,
+    talents: Talents,
+    flags: QuestFlags,
+    spells: Spells,
+    event_memory: EventMemory,
+    area_items: HashMap<String, Item>,
+}
+
+impl SaveState {
+    pub fn from_world(world: &World) -> SaveState {
+        let mut ss=SaveState::default();
+        ss.state=world.get_resource::<AntheaState>().unwrap().clone();
+        ss.journal=world.get_resource::<Journal>().unwrap().clone();
+        ss.inventory=world.get_resource::<Inventory>().unwrap().clone();
+        ss.talents=world.get_resource::<Talents>().unwrap().clone();
+        ss.flags=world.get_resource::<QuestFlags>().unwrap().clone();
+        ss.spells=world.get_resource::<Spells>().unwrap().clone();
+        ss.event_memory=world.get_resource::<EventMemory>().unwrap().clone();
+        ss.area_items=world.get_resource::<Area>().unwrap().items.clone();
+        ss
+    }
+
+    pub fn into_world(&self, world: &mut World) {
+        let old_pos = &world.get_resource::<AntheaState>().unwrap().map_position;
+        let new_pos=&self.state.map_position;
+        let dif_x = (new_pos.x-old_pos.x) as f32;
+        let dif_y = (new_pos.y-old_pos.y) as f32;
+
+        world.insert_resource::<AntheaState>(self.state.clone());
+        world.insert_resource::<Journal>(self.journal.clone());
+        world.insert_resource::<Inventory>(self.inventory.clone());
+        world.insert_resource::<Talents>(self.talents.clone());
+        world.insert_resource::<QuestFlags>(self.flags.clone());
+        world.insert_resource::<Spells>(self.spells.clone());
+        
+        
+        let mut todelete:Vec<Entity>=vec![];
+        let mut item_query=world.query::<(Entity, &Item,&Handle<TextureAtlas>)>();
+        let mut o_atlas_handle = Option::None;
+        for (entity, _item, h) in item_query.iter(world){
+            if o_atlas_handle.is_none(){
+                o_atlas_handle=Some(h.clone());
+            }
+            todelete.push(entity);
+        }
+        for e in todelete.into_iter(){
+            despawn_with_children_recursive(world,e);
+        }
+
+        let asset_server=world.get_resource::<AssetServer>().unwrap();
+        let texture_atlases= world.get_resource::<Assets<TextureAtlas>>().unwrap();
+
+        let default_area= world.get_resource::<Area>().unwrap();
+        
+        let mut items_to_insert=vec![];
+        if let Some(atlas_handle) = o_atlas_handle {
+            let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();   
+            for item in self.area_items.values(){
+                let item_handle = asset_server.get_handle(item.sprite.as_str());
+                let item_index = texture_atlas.get_texture_index(&item_handle).unwrap();
+                let pos=Position{x:default_area.start.x+item.position.x,y:default_area.start.y-item.position.y}.to_vec3_z(0.3);
+                items_to_insert.push((item_index,pos,item.clone()));
+            }
+            for (item_index,pos,item) in items_to_insert.into_iter(){
+                world.spawn().insert_bundle(SpriteSheetBundle {
+                    sprite: TextureAtlasSprite::new(item_index as u32),
+                    texture_atlas: atlas_handle.clone(),
+                    transform: Transform::from_translation(pos),
+                    visible: Visible{is_transparent:true,is_visible:false},
+                    ..Default::default()
+                })
+                .insert(item);
+            }        
+    
+        }
+        let mut area= world.get_resource_mut::<Area>().unwrap();
+        area.items=self.area_items.clone();
+
+        let mut part_query=world.query::<(Entity,&Handle<TextureAtlas>,&PlayerPart)>();
+        
+        let asset_server=world.get_resource::<AssetServer>().unwrap();
+        let texture_atlases= world.get_resource::<Assets<TextureAtlas>>().unwrap();
+
+
+        let mut todo:Vec<(Entity,Handle<TextureAtlas>,String)>=vec![];
+
+        for (entity,atlas_handle,part) in part_query.iter(world) {
+            for bce in self.event_memory.body.iter(){
+                if part==&bce.part {
+                    todo.push((entity,atlas_handle.clone(),bce.sprite.clone()));
+                }
+            }
+        }
+        let mut todo2:Vec<(Entity,u32)>=vec![];
+        for (entity,atlas_handle,sprite) in todo.into_iter(){
+            if let Some(texture_atlas) = texture_atlases.get(&atlas_handle) {
+
+                let hair_handle = asset_server.get_handle(sprite.as_str());
+                if let Some(hair_index) = texture_atlas.get_texture_index(&hair_handle) {
+                    //sprite.index=hair_index as u32;
+                    todo2.push((entity,hair_index as u32));
+                } 
+            }
+        }
+        for (entity,hair_index) in todo2.into_iter(){
+            world.get_mut::<TextureAtlasSprite>(entity).unwrap().index=hair_index;
+        }
+
+        let mut sprite_query=world.query_filtered::<(&mut Transform, &mut Visible),Or<(With<MapTile>,With<Item>,With<Character>)>>();
+
+        for ( mut transform, mut vis) in &mut sprite_query.iter_mut(world) {
+            transform.translation.x+=dif_x;
+            transform.translation.y+=dif_y;
+            let pos = self.state.map_position.to_relative(&Position::new(transform.translation.x as i32, transform.translation.y as i32));
+            vis.is_visible=self.state.revealed.contains(&pos);
+        }
+    }
 }
