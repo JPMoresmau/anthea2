@@ -1,6 +1,7 @@
 use crate::base::*;
 
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 
 pub struct Area {
     pub name: String,
@@ -104,7 +105,7 @@ impl Room {
 }
 
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone, Serialize, Deserialize)]
 pub struct Affordance {
     pub name: String,
     pub description: String,

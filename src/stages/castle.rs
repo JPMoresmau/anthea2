@@ -588,13 +588,11 @@ fn action_rats(
 }
 
 fn character_theon(
-    mut commands: Commands,
     mut event_reader: EventReader<CharacterEvent>,
     mut queue: EventWriter<MessageEvent>,
     mut flags: ResMut<QuestFlags>,
     mut journal: EventWriter<JournalEvent>,
-    mut state: ResMut<AntheaState>,
-    maptile_query: Query<&MapTile>,
+    mut remove_tile: EventWriter<RemoveTileEvent>,
     mut area: ResMut<Area>,){
         for _e in event_reader.iter().filter(|e| e.0 == THEON) {
             if flags.has_flag(QUEST_MAIN, ALLOWED_TO_LEAVE){
@@ -612,17 +610,8 @@ fn character_theon(
                     ));
 
                     let gate_pos=vec![Position { x: -640, y: 928 },Position { x: -672, y: 928 },Position { x: -704, y: 928 }];
-                    for pos in gate_pos.iter(){
-                        if let Some(tes) = state.positions.get_mut(pos){
-                            tes.passable=true;
-                            for e in tes.entities.iter() {
-                                if let Ok(MapTile(layer)) = maptile_query.get(*e){
-                                    if *layer==1{
-                                        commands.despawn_recursive(*e);
-                                    }
-                                }
-                            }
-                        }
+                    for pos in gate_pos.into_iter(){
+                        remove_tile.send(RemoveTileEvent::new(pos,1));
                     }
                     for x in 20..=22 {
                         let outside1 = Affordance::new(format!("{}_{}",OUTSIDE,x), "The outside world", x, 29);

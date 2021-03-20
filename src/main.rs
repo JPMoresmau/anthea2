@@ -62,6 +62,7 @@ impl Plugin for AntheaPlugin {
             .add_event::<ItemEvent>()
             .add_event::<BodyChangeEvent>()
             .add_event::<JournalEvent>()
+            .add_event::<RemoveTileEvent>()
             .add_plugin(CastlePlugin)
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
@@ -74,6 +75,7 @@ impl Plugin for AntheaPlugin {
             .on_state_update(STAGE, GameState::Title, setup_ui.system())
             .on_state_enter(STAGE, GameState::Background, setup_map.system())
             .on_state_enter(STAGE, GameState::Start, setup_items.system())
+            .on_state_enter(STAGE, GameState::Start, setup_body.system())
             .on_state_enter(STAGE, GameState::Start, setup_people.system())
             .on_state_update(STAGE, GameState::Start, start_system.system())
             .on_state_update(STAGE, GameState::Running, player_movement_system.system())
@@ -82,6 +84,7 @@ impl Plugin for AntheaPlugin {
             .on_state_update(STAGE, GameState::Running, pickup_item.system())
             .on_state_update(STAGE, GameState::Running, body_change.system())
             .on_state_update(STAGE, GameState::Running, journal.system())
+            .on_state_update(STAGE, GameState::Running, remove_tile.system())
             .add_plugin(MenuPlugin)
             .add_plugin(UIPlugin)
             //.add_system(visibility_system.system())
@@ -380,4 +383,24 @@ fn journal(mut event_reader: EventReader<JournalEvent>,
             audio.play(asset_server.get_handle("sounds/journal.ogg"));
             journal.add_entry(&je.quest,&je.text);
         }
+}
+
+fn remove_tile(mut commands: Commands,
+        mut event_reader: EventReader<RemoveTileEvent>,
+        mut event_memory: ResMut<EventMemory>,
+        mut state: ResMut<AntheaState>,
+        maptile_query: Query<&MapTile>,){
+    for rte in event_reader.iter() {
+        if let Some(tes) = state.positions.get_mut(&rte.position){
+            tes.passable=true;
+            for e in tes.entities.iter() {
+                if let Ok(MapTile(layer)) = maptile_query.get(*e){
+                    if *layer==rte.layer{
+                        commands.despawn_recursive(*e);
+                        event_memory.removed_tiles.push(rte.clone());
+                    }
+                }
+            }
+        }
+    }
 }

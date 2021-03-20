@@ -71,6 +71,8 @@ pub enum GameState {
     Menu,
     Pause,
     Save,
+    Clean,
+    Reset,
     Load,
     End,
 }
@@ -379,16 +381,29 @@ pub struct BodyChangeEvent {
 
 impl BodyChangeEvent {
     pub fn new<S1: Into<String>>(part: PlayerPart, sprite:S1) -> Self {
-        Self{part:part,sprite:sprite.into()}
+        Self{part,sprite:sprite.into()}
     }
 }
 
 #[derive(Debug,Clone, Default,Serialize, Deserialize)]
 pub struct Help;
 
+#[derive(Debug,Clone, Serialize, Deserialize)]
+pub struct RemoveTileEvent {
+    pub position: Position,
+    pub layer: usize,
+}
+
+impl RemoveTileEvent {
+    pub fn new(position: Position, layer:usize) -> Self {
+        Self{position,layer}
+    }
+}
+
 #[derive(Debug,Clone, Default,Serialize, Deserialize)]
 pub struct EventMemory {
     pub body: Vec<BodyChangeEvent>,
+    pub removed_tiles: Vec<RemoveTileEvent>,
 }
 
 

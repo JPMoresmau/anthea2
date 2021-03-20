@@ -13,7 +13,23 @@ pub fn setup_camera(mut commands: Commands) {
 
 }
 
-pub fn setup_map(mut commands: Commands,
+pub fn setup_map(commands: Commands,
+    sprite_handles: Res<AntheaHandles>,
+    asset_server: Res<AssetServer>,
+    stage: Res<Area>,
+    mut state: ResMut<AntheaState>,
+    map_assets: Res<Assets<Map>>,
+    tileset_assets: Res<Assets<TileSet>>,
+    texture_atlases: ResMut<Assets<TextureAtlas>>,
+    textures: ResMut<Assets<Texture>>,
+    mut appstate: ResMut<State<GameState>>,
+){
+    state.map_position=stage.start.clone();
+    do_setup_map(commands, sprite_handles, asset_server, stage, state, map_assets, tileset_assets, texture_atlases, textures);
+    appstate.set_next(GameState::Start).unwrap();
+}
+
+pub fn do_setup_map(mut commands: Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
     stage: Res<Area>,
@@ -22,7 +38,6 @@ pub fn setup_map(mut commands: Commands,
     tileset_assets: Res<Assets<TileSet>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
-    mut appstate: ResMut<State<GameState>>,
 ){
     let map = map_assets.get(&sprite_handles.map_handles[stage.map_index]).unwrap();
     let ts = tileset_assets.get(&sprite_handles.tileset_handle).unwrap();
@@ -32,7 +47,7 @@ pub fn setup_map(mut commands: Commands,
         let texture = textures.get(handle).unwrap();
         texture_atlas_builder.add_texture(handle.clone_weak().typed::<Texture>(), texture);
     }
-    state.map_position=stage.start.clone();
+    
     let texture_atlas = texture_atlas_builder.finish(&mut textures).unwrap();
     
     let atlas_handle = texture_atlases.add(texture_atlas);
@@ -75,7 +90,7 @@ pub fn setup_map(mut commands: Commands,
     }
 
     
-    appstate.set_next(GameState::Start).unwrap();
+
     //println!("finished map");
     //println!("Revealed: {:?}",state.revealed);
 }
@@ -84,7 +99,7 @@ pub fn setup_items(mut commands: Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
     stage: Res<Area>,
-    state: Res<AntheaState>,
+    state: ResMut<AntheaState>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
     ){
@@ -125,11 +140,9 @@ pub fn setup_items(mut commands: Commands,
 
 }
 
-pub fn setup_people(mut commands: Commands,
+pub fn setup_body(mut commands: Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
-    stage: Res<Area>,
-    state: Res<AntheaState>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut textures: ResMut<Assets<Texture>>,
 ){
@@ -201,21 +214,44 @@ pub fn setup_people(mut commands: Commands,
                 .with(PlayerPart::RightHand);
             })
         ;
-        let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();   
-        for chr in stage.characters.values(){
-            let chr_handle = asset_server.get_handle(chr.sprite.as_str());
-            let chr_index = texture_atlas.get_texture_index(&chr_handle).unwrap();
-            let pos=Position{x:state.map_position.x+chr.position.x,y:state.map_position.y-chr.position.y}.to_vec3_z(0.3);
-            let vis= false;//is_visible(&pos,None);
-            commands.spawn(SpriteSheetBundle {
-                sprite: TextureAtlasSprite::new(chr_index as u32),
-                texture_atlas: atlas_handle.clone(),
-                transform: Transform::from_translation(pos),
-                visible: Visible{is_transparent:true,is_visible:vis},
-                ..Default::default()
-            })
-            .with(chr.clone());
-        }
+       
+}
+
+pub fn setup_people(mut commands: Commands,
+    sprite_handles: Res<AntheaHandles>,
+    asset_server: Res<AssetServer>,
+    stage: Res<Area>,
+    state: Res<AntheaState>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut textures: ResMut<Assets<Texture>>,
+){
+    //println!("starting people");
+    let mut texture_atlas_builder = TextureAtlasBuilder::default();
+    for handle in sprite_handles.people_handles.iter() {
+        let texture = textures.get(handle).unwrap();
+        texture_atlas_builder.add_texture(handle.clone_weak().typed::<Texture>(), texture);
+    }
+
+    let texture_atlas = texture_atlas_builder.finish(&mut textures).unwrap();
+
+    let atlas_handle = texture_atlases.add(texture_atlas);
+
+   
+    let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();   
+    for chr in stage.characters.values(){
+        let chr_handle = asset_server.get_handle(chr.sprite.as_str());
+        let chr_index = texture_atlas.get_texture_index(&chr_handle).unwrap();
+        let pos=Position{x:state.map_position.x+chr.position.x,y:state.map_position.y-chr.position.y}.to_vec3_z(0.3);
+        let vis= false;//is_visible(&pos,None);
+        commands.spawn(SpriteSheetBundle {
+            sprite: TextureAtlasSprite::new(chr_index as u32),
+            texture_atlas: atlas_handle.clone(),
+            transform: Transform::from_translation(pos),
+            visible: Visible{is_transparent:true,is_visible:vis},
+            ..Default::default()
+        })
+        .with(chr.clone());
+    }
 }
 
 pub fn is_visible(pos: &Vec3, ostate: Option<&AntheaState>) -> bool {
