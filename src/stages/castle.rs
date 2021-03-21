@@ -8,8 +8,7 @@ pub struct CastlePlugin;
 
 impl Plugin for CastlePlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app
-            .insert_resource(castle_area())
+        app.insert_resource(castle_area())
             .add_system(affordance_mirror.system())
             .add_system(affordance_fountain.system())
             .add_system(action_fountain.system())
@@ -24,8 +23,7 @@ impl Plugin for CastlePlugin {
             .add_system(action_rats.system())
             .add_system(character_theon.system())
             .add_system(consume_sword.system())
-            .add_system(affordance_outside.system())
-        ;
+            .add_system(affordance_outside.system());
     }
 }
 
@@ -59,8 +57,8 @@ const RATS: &str = "Rats";
 
 const CAT: &str = "cat";
 
-const QUEST_RATS: &str="Rats";
-const RATS_GONE: &str="rats_gone";
+const QUEST_RATS: &str = "Rats";
+const RATS_GONE: &str = "rats_gone";
 
 fn castle_area() -> Area {
     let mut stage = Area::new("Selaion Palace", 0, sprite_position(-20, 4));
@@ -119,17 +117,59 @@ fn castle_area() -> Area {
     );
     stage.add_item(sword);
 
-    let peleus = Character::new(PELEUS,"Peleus, your brother", "sprites/people/peleus.png",19,2);
-    let nerita = Character::new(NERITA,"Nerita, your maid", "sprites/people/nerita.png",6,4);
-    let cretien = Character::new(CRETIEN,"Cretien, your old teacher", "sprites/people/cretien.png",30,5);
-    let scopas = Character::new(SCOPAS,"Scopas, the weapons master", "sprites/people/scopas.png",22,19);
-    let cherise = Character::new(CHERISE,"Cherise, the cook", "sprites/people/cherise.png",12,21);
-    let theon = Character::new(THEON,"Theon, a palace guard", "sprites/people/theon.png",21,27);
+    let peleus = Character::new(
+        PELEUS,
+        "Peleus, your brother",
+        "sprites/people/peleus.png",
+        19,
+        2,
+    );
+    let nerita = Character::new(
+        NERITA,
+        "Nerita, your maid",
+        "sprites/people/nerita.png",
+        6,
+        4,
+    );
+    let cretien = Character::new(
+        CRETIEN,
+        "Cretien, your old teacher",
+        "sprites/people/cretien.png",
+        30,
+        5,
+    );
+    let scopas = Character::new(
+        SCOPAS,
+        "Scopas, the weapons master",
+        "sprites/people/scopas.png",
+        22,
+        19,
+    );
+    let cherise = Character::new(
+        CHERISE,
+        "Cherise, the cook",
+        "sprites/people/cherise.png",
+        12,
+        21,
+    );
+    let theon = Character::new(
+        THEON,
+        "Theon, a palace guard",
+        "sprites/people/theon.png",
+        21,
+        27,
+    );
 
-    let rats = Character::new(RATS,"Big rats", "sprites/people/rat.png",2,24);
+    let rats = Character::new(RATS, "Big rats", "sprites/people/rat.png", 2, 24);
 
-    stage.add_character(peleus).add_character(nerita).add_character(cretien).add_character(scopas)
-        .add_character(cherise).add_character(theon).add_character(rats);
+    stage
+        .add_character(peleus)
+        .add_character(nerita)
+        .add_character(cretien)
+        .add_character(scopas)
+        .add_character(cherise)
+        .add_character(theon)
+        .add_character(rats);
 
     stage
 }
@@ -201,8 +241,7 @@ fn action_fountain(
 ) {
     if let Some(_e) = event_reader
         .iter()
-        .filter(|e| e.menu == FOUNTAIN && e.item == CUT)
-        .next()
+        .find(|e| e.menu == FOUNTAIN && e.item == CUT)
     {
         inventory.remove_item(SCISSORS);
         talents.people += 1;
@@ -214,8 +253,11 @@ fn action_fountain(
         flags.set_flag(QUEST_MAIN, HAIR_CUT);
         flags.set_flag(QUEST_MAIN, HAIR_CUT_SELF);
 
-        body_change.send(BodyChangeEvent::new(PlayerPart::Hair,"sprites/people/hair_short.png"));
-        
+        body_change.send(BodyChangeEvent::new(
+            PlayerPart::Hair,
+            "sprites/people/hair_short.png",
+        ));
+
         queue.send(MessageEvent::new(
             "You feel you've made a mess, but you cut your hair short (People +1).",
             MessageStyle::Info,
@@ -235,12 +277,14 @@ fn action_mirror(
 ) {
     if let Some(_e) = event_reader
         .iter()
-        .filter(|e| e.menu == MIRROR && e.item == CUT)
-        .next()
+        .find(|e| e.menu == MIRROR && e.item == CUT)
     {
         inventory.remove_item(SCISSORS);
         talents.people += 2;
-        body_change.send(BodyChangeEvent::new(PlayerPart::Hair,"sprites/people/hair_short.png"));
+        body_change.send(BodyChangeEvent::new(
+            PlayerPart::Hair,
+            "sprites/people/hair_short.png",
+        ));
         close_menu.send(CloseMenuEvent);
         journal.send(JournalEvent::new(
             QUEST_MAIN,
@@ -258,11 +302,11 @@ fn character_peleus(
     mut flags: ResMut<QuestFlags>,
     mut event_reader: EventReader<CharacterEvent>,
     mut queue: EventWriter<MessageEvent>,
-    mut journal:EventWriter<JournalEvent>,
+    mut journal: EventWriter<JournalEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == PELEUS) {
-        if flags.has_flag(QUEST_MAIN, HAIR_CUT){
-            if flags.has_flag(QUEST_MAIN, ALLOWED_TO_LEAVE){
+        if flags.has_flag(QUEST_MAIN, HAIR_CUT) {
+            if flags.has_flag(QUEST_MAIN, ALLOWED_TO_LEAVE) {
                 queue.send(MessageEvent::new(
                     "You haven't left yet?",
                     MessageStyle::Info,
@@ -273,8 +317,11 @@ fn character_peleus(
                     "I see you're determined enough get rid of the hair you were so proud of.\nAllright, I will give orders that you're allowed to leave.",
                     MessageStyle::Info,
                 ));
-                
-                journal.send(JournalEvent::new(QUEST_MAIN,"Peleus has allowed me to leave on my quest for Father!"));
+
+                journal.send(JournalEvent::new(
+                    QUEST_MAIN,
+                    "Peleus has allowed me to leave on my quest for Father!",
+                ));
             }
         } else if flags.has_flag(QUEST_MAIN, PELEUS_FORBIDDEN) {
             queue.send(MessageEvent::new(
@@ -295,7 +342,6 @@ fn character_peleus(
     }
 }
 
-
 fn character_nerita(
     flags: Res<QuestFlags>,
     inventory: Res<Inventory>,
@@ -311,7 +357,7 @@ fn character_nerita(
             );
             let m = Menu::new(NERITA, "Nerita, your maid", vec![mi]);
             menu.send(MenuEvent::new(m));
-        } else if flags.has_flag(QUEST_MAIN, HAIR_CUT){
+        } else if flags.has_flag(QUEST_MAIN, HAIR_CUT) {
             if flags.has_flag(QUEST_MAIN, HAIR_CUT_SELF) {
                 let mi = MenuItem::new(
                     FIX,
@@ -326,7 +372,6 @@ fn character_nerita(
                 ));
             }
         } else {
-
             queue.send(MessageEvent::new(
                 "You'll always be a little girl to me. Let me comb your hair!",
                 MessageStyle::Info,
@@ -345,15 +390,14 @@ fn action_nerita(
     mut close_menu: EventWriter<CloseMenuEvent>,
     mut body_change: EventWriter<BodyChangeEvent>,
 ) {
-    if let Some(e) = event_reader
-        .iter()
-        .filter(|e| e.menu == NERITA)
-        .next()
-    {
-        if e.item==CUT {
+    if let Some(e) = event_reader.iter().find(|e| e.menu == NERITA) {
+        if e.item == CUT {
             inventory.remove_item(SCISSORS);
             talents.people += 2;
-            body_change.send(BodyChangeEvent::new(PlayerPart::Hair,"sprites/people/hair_short.png"));
+            body_change.send(BodyChangeEvent::new(
+                PlayerPart::Hair,
+                "sprites/people/hair_short.png",
+            ));
             close_menu.send(CloseMenuEvent);
             journal.send(JournalEvent::new(
                 QUEST_MAIN,
@@ -364,7 +408,7 @@ fn action_nerita(
                 "Really a shame to cut such beautiful hair (People +2)!",
                 MessageStyle::Info,
             ));
-        } else if e.item==FIX {
+        } else if e.item == FIX {
             talents.people += 1;
             close_menu.send(CloseMenuEvent);
             journal.send(JournalEvent::new(
@@ -394,9 +438,12 @@ fn character_cretien(
                 MessageStyle::Info,
             ));
             inventory.remove_item(SCROLL);
-            let spell=Spell::new(CAT,"Create the illusion of a cat!");
+            let spell = Spell::new(CAT, "Create the illusion of a cat!");
             spells.add_spell(spell);
-            journal.send(JournalEvent::new(QUEST_MAIN, "Cretien taught me a little spell, not sure if it'll be useful..."));
+            journal.send(JournalEvent::new(
+                QUEST_MAIN,
+                "Cretien taught me a little spell, not sure if it'll be useful...",
+            ));
         } else {
             queue.send(MessageEvent::new(
                 "I'm always on the lookout for new knowledge!",
@@ -414,21 +461,24 @@ fn character_scopas(
     mut journal: EventWriter<JournalEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == SCOPAS) {
-        if talents.weapons>0 {
-            if flags.has_flag(QUEST_MAIN, TRAINED_BY_SCOPAS){
+        if talents.weapons > 0 {
+            if flags.has_flag(QUEST_MAIN, TRAINED_BY_SCOPAS) {
                 queue.send(MessageEvent::new(
                     "Don't tire yourself out!",
                     MessageStyle::Info,
                 ));
             } else {
                 flags.set_flag(QUEST_MAIN, TRAINED_BY_SCOPAS);
-                journal.send(JournalEvent::new(QUEST_MAIN, "Scopas gave me a hard fighting lesson."));
-                
+                journal.send(JournalEvent::new(
+                    QUEST_MAIN,
+                    "Scopas gave me a hard fighting lesson.",
+                ));
+
                 queue.send(MessageEvent::new(
                     "You're getting better with a weapon, but you still need to practise (Weapons +1)!",
                     MessageStyle::Info,
                 ));
-                talents.weapons+=1;
+                talents.weapons += 1;
             }
         } else {
             queue.send(MessageEvent::new(
@@ -439,17 +489,22 @@ fn character_scopas(
     }
 }
 
-
 fn consume_sword(
     mut event_reader: EventReader<ItemEvent>,
     mut talents: ResMut<Talents>,
     mut body_change: EventWriter<BodyChangeEvent>,
     mut queue: EventWriter<MessageEvent>,
-){
+) {
     for _e in event_reader.iter().filter(|e| e.0 == SWORD) {
-        body_change.send(BodyChangeEvent::new(PlayerPart::RightHand,"sprites/people/short_sword.png"));
-        talents.weapons+=1;
-        queue.send(MessageEvent::new("You now have a weapon (Weapons +1)!", MessageStyle::Info));
+        body_change.send(BodyChangeEvent::new(
+            PlayerPart::RightHand,
+            "sprites/people/short_sword.png",
+        ));
+        talents.weapons += 1;
+        queue.send(MessageEvent::new(
+            "You now have a weapon (Weapons +1)!",
+            MessageStyle::Info,
+        ));
     }
 }
 
@@ -461,17 +516,16 @@ fn character_cherise(
     mut journale: EventWriter<JournalEvent>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == CHERISE) {
-        if flags.has_flag(QUEST_RATS, QUEST_STARTED){
-            if flags.has_flag(QUEST_RATS, QUEST_COMPLETED){
+        if flags.has_flag(QUEST_RATS, QUEST_STARTED) {
+            if flags.has_flag(QUEST_RATS, QUEST_COMPLETED) {
                 queue.send(MessageEvent::new(
                     "Thanks again for killing these rats!",
                     MessageStyle::Info,
                 ));
-            } else if flags.has_flag(QUEST_RATS, RATS_GONE){
-                
+            } else if flags.has_flag(QUEST_RATS, RATS_GONE) {
                 flags.set_flag(QUEST_RATS, QUEST_COMPLETED);
                 journale.send(JournalEvent::new(QUEST_MAIN,"Cherise gave me some food to thank me for getting rid of the rats in the cellar"));
-                flags.set_flag(QUEST_MAIN,OBTAINED_FOOD);
+                flags.set_flag(QUEST_MAIN, OBTAINED_FOOD);
                 queue.send(MessageEvent::new(
                     "You got rid of the rats? Great! Here's some food for you...",
                     MessageStyle::Info,
@@ -481,12 +535,15 @@ fn character_cherise(
                     "These rats are driving me crazy!",
                     MessageStyle::Info,
                 ));
-            } 
+            }
         } else {
             flags.set_flag(QUEST_RATS, QUEST_STARTED);
-            let q=Quest::new(QUEST_RATS,"Get rid of the rats in the cellar");
+            let q = Quest::new(QUEST_RATS, "Get rid of the rats in the cellar");
             journal.add_quest(q);
-            journale.send(JournalEvent::new(QUEST_RATS,"Cherise would like somebody to kill the rats in the cellar."));
+            journale.send(JournalEvent::new(
+                QUEST_RATS,
+                "Cherise would like somebody to kill the rats in the cellar.",
+            ));
             queue.send(MessageEvent::new(
                 "Don't tell your brother, but there are rats in the cellar. I can't get rid of them, I wish somebody would kill them all!",
                 MessageStyle::Info,
@@ -498,25 +555,19 @@ fn character_cherise(
 fn character_rats(
     mut event_reader: EventReader<CharacterEvent>,
     mut queue: EventWriter<MessageEvent>,
-    mut menu: EventWriter<MenuEvent>    ,
+    mut menu: EventWriter<MenuEvent>,
     talents: Res<Talents>,
     spells: Res<Spells>,
     flags: Res<QuestFlags>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0 == RATS) {
-        if flags.has_flag(QUEST_RATS, QUEST_STARTED){
+        if flags.has_flag(QUEST_RATS, QUEST_STARTED) {
             let mut mis = vec![];
-            if talents.weapons>1 {
-                mis.push(MenuItem::new(
-                    FIGHT,
-                    "Kill the rats!",
-                ));
+            if talents.weapons > 1 {
+                mis.push(MenuItem::new(FIGHT, "Kill the rats!"));
             }
-            if spells.contains_spell(CAT){
-                mis.push(MenuItem::new(
-                    SCARE,
-                    "Create the illusion of a cat",
-                ));
+            if spells.contains_spell(CAT) {
+                mis.push(MenuItem::new(SCARE, "Create the illusion of a cat"));
             }
             if mis.is_empty() {
                 queue.send(MessageEvent::new(
@@ -524,18 +575,13 @@ fn character_rats(
                     MessageStyle::Info,
                 ));
             } else {
-                if mis.len()<2 {
-                    mis.push(MenuItem::new(
-                        "",
-                        "(More options could be available)",
-                    ));
+                if mis.len() < 2 {
+                    mis.push(MenuItem::new("", "(More options could be available)"));
                 }
-    
+
                 let m = Menu::new(RATS, "Big cellar rats", mis);
                 menu.send(MenuEvent::new(m));
-
             }
-           
         } else {
             queue.send(MessageEvent::new(
                 "The rats are not afraid of you.",
@@ -553,22 +599,18 @@ fn action_rats(
     mut flags: ResMut<QuestFlags>,
     mut area: ResMut<Area>,
     mut close_menu: EventWriter<CloseMenuEvent>,
-    character_query: Query<(Entity, &Character)>,){
-    if let Some(e) = event_reader
-        .iter()
-        .filter(|e| e.menu == RATS)
-        .next()
-    {
-        let mut gone=false;
-        if e.item==FIGHT {
+    character_query: Query<(Entity, &Character)>,
+) {
+    if let Some(e) = event_reader.iter().find(|e| e.menu == RATS) {
+        let mut gone = false;
+        if e.item == FIGHT {
             queue.send(MessageEvent::new(
                 "You massacre the rats.",
                 MessageStyle::Info,
             ));
             gone = true;
-            
-        } else if e.item==SCARE {
-            talents.animals+=1;
+        } else if e.item == SCARE {
+            talents.animals += 1;
             queue.send(MessageEvent::new(
                 "You pronounce the incantation, a big cat appears, scaring the rats away (Animals+1).",
                 MessageStyle::Info,
@@ -579,7 +621,7 @@ fn action_rats(
             flags.set_flag(QUEST_RATS, RATS_GONE);
 
             close_menu.send(CloseMenuEvent);
-            for (e,_i2) in character_query.iter().filter(|(_e,c)| c.name==RATS) {
+            for (e, _i2) in character_query.iter().filter(|(_e, c)| c.name == RATS) {
                 commands.despawn_recursive(e);
             }
             area.characters.remove(RATS);
@@ -593,40 +635,44 @@ fn character_theon(
     mut flags: ResMut<QuestFlags>,
     mut journal: EventWriter<JournalEvent>,
     mut remove_tile: EventWriter<RemoveTileEvent>,
-    mut area: ResMut<Area>,){
-        for _e in event_reader.iter().filter(|e| e.0 == THEON) {
-            if flags.has_flag(QUEST_MAIN, ALLOWED_TO_LEAVE){
-                if flags.has_flag(QUEST_MAIN, OPENED_EXIT){
-                    queue.send(MessageEvent::new(
-                        "Good day, my lady.",
-                        MessageStyle::Info,
-                    ));
-                } else {
-                    flags.set_flag(QUEST_MAIN, OPENED_EXIT);
-                    journal.send(JournalEvent::new(QUEST_MAIN,"I can now go out of the palace"));
-                    queue.send(MessageEvent::new(
-                        "Peleus told us we could let you go. Careful out there, my lady.",
-                        MessageStyle::Info,
-                    ));
-
-                    let gate_pos=vec![Position { x: -640, y: 928 },Position { x: -672, y: 928 },Position { x: -704, y: 928 }];
-                    for pos in gate_pos.into_iter(){
-                        remove_tile.send(RemoveTileEvent::new(pos,1));
-                    }
-                    for x in 20..=22 {
-                        let outside1 = Affordance::new(format!("{}_{}",OUTSIDE,x), "The outside world", x, 29);
-                        area.add_affordance(outside1);
-                    }
-                   
-                }
+    mut area: ResMut<Area>,
+) {
+    for _e in event_reader.iter().filter(|e| e.0 == THEON) {
+        if flags.has_flag(QUEST_MAIN, ALLOWED_TO_LEAVE) {
+            if flags.has_flag(QUEST_MAIN, OPENED_EXIT) {
+                queue.send(MessageEvent::new("Good day, my lady.", MessageStyle::Info));
             } else {
+                flags.set_flag(QUEST_MAIN, OPENED_EXIT);
+                journal.send(JournalEvent::new(
+                    QUEST_MAIN,
+                    "I can now go out of the palace",
+                ));
                 queue.send(MessageEvent::new(
-                    " You are forbidden to go outside. I'm sorry my lady, your brother's orders.",
+                    "Peleus told us we could let you go. Careful out there, my lady.",
                     MessageStyle::Info,
                 ));
-               
+
+                let gate_pos = vec![
+                    Position { x: -640, y: 928 },
+                    Position { x: -672, y: 928 },
+                    Position { x: -704, y: 928 },
+                ];
+                for pos in gate_pos.into_iter() {
+                    remove_tile.send(RemoveTileEvent::new(pos, 1));
+                }
+                for x in 20..=22 {
+                    let outside1 =
+                        Affordance::new(format!("{}_{}", OUTSIDE, x), "The outside world", x, 29);
+                    area.add_affordance(outside1);
+                }
             }
+        } else {
+            queue.send(MessageEvent::new(
+                " You are forbidden to go outside. I'm sorry my lady, your brother's orders.",
+                MessageStyle::Info,
+            ));
         }
+    }
 }
 
 fn affordance_outside(
@@ -642,7 +688,7 @@ fn affordance_outside(
                 "You should get food before venturing outside",
                 MessageStyle::Info,
             ));
-        } else if talents.weapons<1 {
+        } else if talents.weapons < 1 {
             queue.send(MessageEvent::new(
                 "You should get a weapon, the outside world is not safe",
                 MessageStyle::Info,
@@ -656,8 +702,9 @@ fn affordance_outside(
                 Message {
                     contents: "You pass the castle gate. Your adventure truly begins!".to_owned(),
                     style: MessageStyle::Info,
-                }]));
-                state.set_next(GameState::End).unwrap();
+                },
+            ]));
+            state.set_next(GameState::End).unwrap();
         }
     }
 }

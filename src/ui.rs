@@ -107,7 +107,6 @@ pub struct InteractionItem(pub String);
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct TableItem;
 
-
 const DIMENSIONS: &[((f32, f32), (f32, f32))] = &[
     // borders
     ((857.0, 192.0), (879.0, 212.0)),
@@ -186,7 +185,10 @@ pub fn setup_ui(
                             //left: Val::Px(10.0),
                             ..Default::default()
                         },*/
-                        max_size: Size::new(Val::Px(SCREEN_WIDTH as f32 * 0.9), Val::Px(SCREEN_HEIGHT as f32 * 0.5)),
+                        max_size: Size::new(
+                            Val::Px(SCREEN_WIDTH as f32 * 0.9),
+                            Val::Px(SCREEN_HEIGHT as f32 * 0.5),
+                        ),
                         //flex_grow: 1.0,
                         ..Default::default()
                     },
@@ -275,7 +277,10 @@ fn message_system(
     mut event_reader: EventReader<MessageEvent>,
     mut text_query: Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
     mut style_query: Query<&mut Style, Without<Text>>,
-    msg_query: QuerySet<( Query<(&Background, &mut Visible)>,Query<(&MessageFramePart, &mut Visible)> )>,
+    msg_query: QuerySet<(
+        Query<(&Background, &mut Visible)>,
+        Query<(&MessageFramePart, &mut Visible)>,
+    )>,
     nav_query: Query<(&Draw, &CalculatedSize, &Transform, &Parent), With<NavigationPart>>,
     menu_query: Query<Entity, With<InteractionItem>>,
     table_query: Query<Entity, With<TableItem>>,
@@ -287,7 +292,7 @@ fn message_system(
             &mut text_query,
             nav_query,
             menu_query,
-            table_query
+            table_query,
         );
 
         for (_mt, mut text, mut style, parent) in &mut text_query.iter_mut() {
@@ -296,27 +301,26 @@ fn message_system(
             style.align_self = Default::default();
             let mut sep = String::new();
             text.sections.clear();
-           
-           
+
             commands.set_current_entity(parent.0);
             commands.with_children(|parent| {
-                let mut needs_close=false;
+                let mut needs_close = false;
                 for msg in me.messages.iter() {
                     //println!("Message: {:?}",msg);
 
                     if let MessageStyle::Navigation(backward, forward) = &msg.style {
-                        build_navigation(parent, &handles, (*backward,*forward));
+                        build_navigation(parent, &handles, (*backward, *forward));
                     } else if let MessageStyle::Table(data) = &msg.style {
                         build_table(parent, &handles, &msg.contents, data);
                         needs_close = true;
                     } else {
                         let ts = build_section(&msg, handles.font_handle.clone(), &sep);
                         if let MessageStyle::Interaction(code) = &msg.style {
-                           build_interaction(parent,ts,code);
-                           needs_close = true;
+                            build_interaction(parent, ts, code);
+                            needs_close = true;
                         } else {
                             text.sections.push(ts);
-                            if msg.style == MessageStyle::Info && me.messages.len()==1 {
+                            if msg.style == MessageStyle::Info && me.messages.len() == 1 {
                                 ps.justify_content = JustifyContent::FlexEnd;
                             }
                             if sep.is_empty() {
@@ -325,16 +329,15 @@ fn message_system(
                         }
                     }
                 }
-                if needs_close{
+                if needs_close {
                     build_close(parent, &handles);
                 }
             });
-          
         }
     }
 }
 
-fn build_interaction<S1:Into<String>>(parent: &mut ChildBuilder, ts: TextSection, code: S1){
+fn build_interaction<S1: Into<String>>(parent: &mut ChildBuilder, ts: TextSection, code: S1) {
     parent
         .spawn(TextBundle {
             style: Style {
@@ -360,52 +363,50 @@ fn build_interaction<S1:Into<String>>(parent: &mut ChildBuilder, ts: TextSection
         .with(InteractionItem(code.into()));
 }
 
-
-fn build_table<S1: Into<String>>(parent: &mut ChildBuilder,handles: &Res<AntheaHandles>,fst: S1, data:&Vec<String>){
-    parent.spawn(NodeBundle {
-        style: Style {
-            margin: bevy::prelude::Rect::all(Val::Px(5.0)),
-            max_size: Size::new(
-                Val::Px(SCREEN_WIDTH as f32 * 0.4),
-                Val::Px(16.0),
-            ),
-            size: Size::new(
-                Val::Px(90.0),
-                Val::Px(16.0),
-            ),
-            justify_content: JustifyContent::SpaceBetween,
-            ..Default::default()
-        },
-        visible: Visible {
-            is_visible: false,
-            is_transparent: true,
-        },
-        ..Default::default()
-    })
-    .with(TableItem)
-    .with_children(|np| {
-        for txt in std::iter::once(&fst.into()).chain(data.iter()){
-            np.spawn(TextBundle {
-                style: Style {
-                    align_self: AlignSelf::Center,
-                    ..Default::default()
-                },
-                text: Text {
-                    sections: vec![build_section(
-                        &Message::new(txt, MessageStyle::Help),
-                        handles.font_handle.clone(),
-                        "",
-                    )],
-                    ..Default::default()
-                },
+fn build_table<S1: Into<String>>(
+    parent: &mut ChildBuilder,
+    handles: &Res<AntheaHandles>,
+    fst: S1,
+    data: &[String],
+) {
+    parent
+        .spawn(NodeBundle {
+            style: Style {
+                margin: bevy::prelude::Rect::all(Val::Px(5.0)),
+                max_size: Size::new(Val::Px(SCREEN_WIDTH as f32 * 0.4), Val::Px(16.0)),
+                size: Size::new(Val::Px(90.0), Val::Px(16.0)),
+                justify_content: JustifyContent::SpaceBetween,
                 ..Default::default()
-            });
-        }
-    });
+            },
+            visible: Visible {
+                is_visible: false,
+                is_transparent: true,
+            },
+            ..Default::default()
+        })
+        .with(TableItem)
+        .with_children(|np| {
+            for txt in std::iter::once(&fst.into()).chain(data.iter()) {
+                np.spawn(TextBundle {
+                    style: Style {
+                        align_self: AlignSelf::Center,
+                        ..Default::default()
+                    },
+                    text: Text {
+                        sections: vec![build_section(
+                            &Message::new(txt, MessageStyle::Help),
+                            handles.font_handle.clone(),
+                            "",
+                        )],
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            }
+        });
 }
 
-
-fn build_close(parent: &mut ChildBuilder,handles: &Res<AntheaHandles>,){
+fn build_close(parent: &mut ChildBuilder, handles: &Res<AntheaHandles>) {
     parent
         .spawn(TextBundle {
             style: Style {
@@ -427,7 +428,11 @@ fn build_close(parent: &mut ChildBuilder,handles: &Res<AntheaHandles>,){
         .with(InteractionItem(CLOSE.into()));
 }
 
-fn build_navigation(parent: &mut ChildBuilder,handles: &Res<AntheaHandles>,(backward,forward):(bool,bool)){
+fn build_navigation(
+    parent: &mut ChildBuilder,
+    handles: &Res<AntheaHandles>,
+    (backward, forward): (bool, bool),
+) {
     let l = MessageFramePart::iter().len();
     let btile = if backward { l } else { l + 2 };
     let ftile = if forward { l + 1 } else { l + 3 };
@@ -477,27 +482,52 @@ fn build_navigation(parent: &mut ChildBuilder,handles: &Res<AntheaHandles>,(back
 }
 
 fn message_decoration_system(
-    text_query: Query<(&Text, &CalculatedSize, &Transform, &MessageText), (Mutated<CalculatedSize>,Without<Background>,Without<MessageFramePart>)>,
-    item_query: Query<(&Text, &CalculatedSize, &Transform), (With<InteractionItem>,Without<Background>,Without<MessageFramePart>)>,
-    nav_query: Query<(&Draw, &CalculatedSize, &Transform), (With<NavigationPart>,Without<Background>,Without<MessageFramePart>)>,
-    table_query: Query<(&Node,&Children), With<TableItem>>,
-    cs_query: Query<(&Draw, &CalculatedSize, &Transform),(Without<Background>,Without<MessageFramePart>)>,
-    mut msg_query: QuerySet<(Query<(
-        &Background,
-        &mut Visible,
-        &mut Transform,
-        &mut GlobalTransform,
+    text_query: Query<
+        (&Text, &CalculatedSize, &Transform, &MessageText),
+        (
+            Mutated<CalculatedSize>,
+            Without<Background>,
+            Without<MessageFramePart>,
+        ),
+    >,
+    item_query: Query<
+        (&Text, &CalculatedSize, &Transform),
+        (
+            With<InteractionItem>,
+            Without<Background>,
+            Without<MessageFramePart>,
+        ),
+    >,
+    nav_query: Query<
+        (&Draw, &CalculatedSize, &Transform),
+        (
+            With<NavigationPart>,
+            Without<Background>,
+            Without<MessageFramePart>,
+        ),
+    >,
+    table_query: Query<(&Node, &Children), With<TableItem>>,
+    cs_query: Query<
+        (&Draw, &CalculatedSize, &Transform),
+        (Without<Background>, Without<MessageFramePart>),
+    >,
+    mut msg_query: QuerySet<(
+        Query<(
+            &Background,
+            &mut Visible,
+            &mut Transform,
+            &mut GlobalTransform,
+        )>,
+        Query<(
+            &MessageFramePart,
+            &mut Visible,
+            &mut Transform,
+            &mut GlobalTransform,
+        )>,
     )>,
-    Query<(
-        &MessageFramePart,
-        &mut Visible,
-        &mut Transform,
-        &mut GlobalTransform,
-    )>)>,
 ) {
-    for (t, cs, ttr,_mt) in text_query.iter() {
-        if t.sections.len() > 0 && t.sections[0].value.len() > 0 {
-            
+    for (t, cs, ttr, _mt) in text_query.iter() {
+        if !t.sections.is_empty() && !t.sections[0].value.is_empty() {
             // println!("CalculatedSize: {:?}",cs);
             let mut max_w: f32 = 0.0;
             let mut add_y = 0.0;
@@ -505,27 +535,27 @@ fn message_decoration_system(
                 max_w = max_w.max(cs.size.width);
                 add_y += cs.size.height + 10.0;
             }
-            let mut horiz_w: f32=0.0;
+            let mut horiz_w: f32 = 0.0;
             let mut max_y: f32 = 0.0;
             for (_d, cs, _tr) in nav_query.iter() {
                 max_y = max_y.max(cs.size.height);
-                horiz_w +=cs.size.width;
+                horiz_w += cs.size.width;
             }
             max_w = max_w.max(horiz_w);
-            add_y+=max_y;
-            
-            for (_n, chs) in table_query.iter(){
-                horiz_w=0.0;
+            add_y += max_y;
+
+            for (_n, chs) in table_query.iter() {
+                horiz_w = 0.0;
                 max_y = 0.0;
                 for e in chs.iter() {
-                    if let Ok((_d,cs,_tr))=cs_query.get(*e){
+                    if let Ok((_d, cs, _tr)) = cs_query.get(*e) {
                         //println!("Table query: {:?}",cs);
                         max_y = max_y.max(cs.size.height);
-                        horiz_w +=cs.size.width;
+                        horiz_w += cs.size.width;
                     }
                 }
                 max_w = max_w.max(horiz_w);
-                add_y+=max_y+10.0;
+                add_y += max_y + 10.0;
                 //println!("CalculatedSize.add_y: {:?}",add_y);
             }
 
@@ -602,16 +632,17 @@ fn message_decoration_system(
                 gtr.translation = tr.translation;
                 gtr.scale = tr.scale;
             }
-           
         }
     }
 }
 
-
 fn message_clear_system(
     mut commands: Commands,
     mut event_reader: EventReader<ClearMessage>,
-    msg_query: QuerySet<( Query<(&Background, &mut Visible)>,Query<(&MessageFramePart, &mut Visible)> )>,
+    msg_query: QuerySet<(
+        Query<(&Background, &mut Visible)>,
+        Query<(&MessageFramePart, &mut Visible)>,
+    )>,
     mut text_query: Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
     nav_query: Query<(&Draw, &CalculatedSize, &Transform, &Parent), With<NavigationPart>>,
     menu_query: Query<Entity, With<InteractionItem>>,
@@ -632,7 +663,10 @@ fn message_clear_system(
 
 fn clear(
     commands: &mut Commands,
-    mut msg_query: QuerySet<( Query<(&Background, &mut Visible)>,Query<(&MessageFramePart, &mut Visible)> )>,
+    mut msg_query: QuerySet<(
+        Query<(&Background, &mut Visible)>,
+        Query<(&MessageFramePart, &mut Visible)>,
+    )>,
     text_query: &mut Query<(&MessageText, &mut Text, &mut Style, &Parent)>,
     nav_query: Query<(&Draw, &CalculatedSize, &Transform, &Parent), With<NavigationPart>>,
     menu_query: Query<Entity, With<InteractionItem>>,
