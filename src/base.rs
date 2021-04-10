@@ -76,8 +76,7 @@ pub enum GameState {
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
 pub struct MouseLocation {
-    pub x: f32,
-    pub y: f32,
+    pub coords: Option<(f32,f32)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

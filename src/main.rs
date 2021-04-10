@@ -175,7 +175,7 @@ fn player_movement_system(
                 // println!("Affordance: {}",a.name);
                 ev_affordance.send(AffordanceEvent(a.name.clone()));
             } else if let Some(c) = stage.character_from_coords(rel_x, rel_y) {
-                // println!("Character: {}",c.name);
+                //println!("Character: {}",c.name);
                 ev_character.send(CharacterEvent(c.name.clone()));
             } else {
                 audio.play(asset_server.get_handle("sounds/steps.ogg"));
@@ -254,8 +254,7 @@ fn cursor_system(
             // apply the camera transform
             let pos_wld = camera_transform.compute_matrix() * p.extend(0.0).extend(1.0);
             //println!("World coords: {}/{}", pos_wld.x, pos_wld.y);
-            location.x = pos_wld.x;
-            location.y = pos_wld.y;
+            location.coords=Some((pos_wld.x,pos_wld.y));
         }
     }
 }
@@ -296,7 +295,7 @@ fn start_system(
 
 fn click_system(
     mouse_button_input: Res<Input<MouseButton>>,
-    location: Res<MouseLocation>,
+    mut location: ResMut<MouseLocation>,
     mut queue: EventWriter<MessageEvent>,
     mut clearm: EventWriter<ClearMessage>,
     state: Res<AntheaState>,
@@ -304,51 +303,55 @@ fn click_system(
     mut menu: EventWriter<MenuEvent>,
 ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        println!("left mouse currently pressed as: {} {}",location.x,location.y);
-        if location.x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
-            && location.y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
-        {
-            menu.send(MenuEvent::new(system_menu()));
-            return;
-        }
-
-        let rel_x = location.x - (state.map_position.x as f32);
-        let rel_y = -(location.y - (state.map_position.y as f32));
-        //println!("relative: {:?},{:?}",rel_x,rel_y);
-
-        let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
-        let mut revealed = false;
-        for rp in state.revealed.iter() {
-            if rp.distance(&rel_pos) <= SPRITE_SIZE / 2 {
-                revealed = true;
-                break;
-            }
-        }
-        if revealed {
-            if location.x.abs() <= SPRITE_SIZE as f32 / 2.0
-                && location.y.abs() <= SPRITE_SIZE as f32 / 2.0
+        if let Some((x,y)) = location.coords {
+            //println!("left mouse currently pressed as: {} {}",x,y);
+            if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
+                && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
             {
-                //println!("click on center");
-                //appstate.set_next(GameState::Menu).unwrap();
-                menu.send(MenuEvent::new(main_menu()));
-                /*queue.send(MessageEvent::new_multi(vec![
-                    Message::new("Journal",MessageStyle::Interaction),
-                    Message::new("Inventory",MessageStyle::Interaction),
-                    Message::new("Talents",MessageStyle::Interaction),
-                ]));*/
-            } else if let Some(c) = stage.character_from_coords(rel_x, rel_y) {
-                queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
-            } else if let Some(a) = stage.affordance_from_coords(rel_x, rel_y) {
-                queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
-            } else if let Some(i) = stage.item_from_coords(rel_x, rel_y) {
-                queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
-            } else if let Some(r) = stage.room_from_coords(rel_x, rel_y) {
-                queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
+                location.coords=None;
+                menu.send(MenuEvent::new(system_menu()));
+                return;
+            }
+
+            let rel_x = x - (state.map_position.x as f32);
+            let rel_y = -(y - (state.map_position.y as f32));
+            //println!("relative: {:?},{:?}",rel_x,rel_y);
+
+            let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
+            let mut revealed = false;
+            for rp in state.revealed.iter() {
+                if rp.distance(&rel_pos) <= SPRITE_SIZE / 2 {
+                    revealed = true;
+                    break;
+                }
+            }
+            if revealed {
+                if x.abs() <= SPRITE_SIZE as f32 / 2.0
+                    && y.abs() <= SPRITE_SIZE as f32 / 2.0
+                {
+                    location.coords=None;
+                    //println!("click on center");
+                    //appstate.set_next(GameState::Menu).unwrap();
+                    menu.send(MenuEvent::new(main_menu()));
+                    /*queue.send(MessageEvent::new_multi(vec![
+                        Message::new("Journal",MessageStyle::Interaction),
+                        Message::new("Inventory",MessageStyle::Interaction),
+                        Message::new("Talents",MessageStyle::Interaction),
+                    ]));*/
+                } else if let Some(c) = stage.character_from_coords(rel_x, rel_y) {
+                    queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
+                } else if let Some(a) = stage.affordance_from_coords(rel_x, rel_y) {
+                    queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
+                } else if let Some(i) = stage.item_from_coords(rel_x, rel_y) {
+                    queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
+                } else if let Some(r) = stage.room_from_coords(rel_x, rel_y) {
+                    queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
+                } else {
+                    clearm.send(ClearMessage);
+                }
             } else {
                 clearm.send(ClearMessage);
             }
-        } else {
-            clearm.send(ClearMessage);
         }
     }
 }
