@@ -58,7 +58,7 @@ impl Default for AntheaState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, EnumIter,Hash)]
 pub enum GameState {
     Setup,
     Title,

@@ -622,7 +622,7 @@ fn action_rats(
 
             close_menu.send(CloseMenuEvent);
             for (e, _i2) in character_query.iter().filter(|(_e, c)| c.name == RATS) {
-                commands.despawn_recursive(e);
+                commands.entity(e).despawn_recursive();
             }
             area.characters.remove(RATS);
         }
@@ -704,7 +704,7 @@ fn affordance_outside(
                     style: MessageStyle::Info,
                 },
             ]));
-            state.set_next(GameState::End).unwrap();
+            state.set(GameState::End).unwrap();
         }
     }
 }

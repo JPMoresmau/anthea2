@@ -209,23 +209,23 @@ impl Plugin for MenuPlugin {
             .insert_resource(Menus::default())
             .add_system(menu_start.system())
             //.on_state_enter(STAGE, GameState::Menu,show_main_menu.system())
-            .on_state_update(STAGE, GameState::Menu, click_system.system())
-            .on_state_update(STAGE, GameState::Menu, click_nav_system.system())
-            .on_state_update(STAGE, GameState::Menu, journal_event.system())
-            .on_state_update(STAGE, GameState::Menu, inventory_event.system())
-            .on_state_update(STAGE, GameState::Menu, spells_event.system())
-            .on_state_update(STAGE, GameState::Menu, talents_event.system())
-            .on_state_update(STAGE, GameState::Menu, help_event.system())
-            .on_state_update(STAGE, GameState::Menu, save_event.system())
-            .on_state_update(STAGE, GameState::Menu, load_event.system())
-            .on_state_update(STAGE, GameState::Menu, menu_close.system())
-            .on_state_update(STAGE, GameState::Menu, close_menu.system())
-            .on_state_enter(STAGE, GameState::Save, save.exclusive_system())
-            .on_state_enter(STAGE, GameState::Clean, clean.exclusive_system())
-            .on_state_enter(STAGE, GameState::Reset, reset.system())
-            .on_state_enter(STAGE, GameState::Reset, setup_items.system())
-            .on_state_enter(STAGE, GameState::Reset, setup_people.system())
-            .on_state_enter(STAGE, GameState::Load, load.exclusive_system());
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(click_system.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(click_nav_system.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(journal_event.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(inventory_event.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(spells_event.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(talents_event.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(help_event.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(save_event.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(load_event.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(menu_close.system()))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(close_menu.system()))
+            .add_system_set(SystemSet::on_enter(GameState::Save).with_system(save.exclusive_system()))
+            .add_system_set(SystemSet::on_enter(GameState::Clean).with_system(clean.exclusive_system()))
+            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(reset.system()))
+            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(setup_items.system()))
+            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(setup_people.system()))
+            .add_system_set(SystemSet::on_enter( GameState::Load).with_system(load.exclusive_system()));
     }
 }
 
@@ -279,7 +279,7 @@ fn push_menu(queue: EventWriter<MessageEvent>, mut menus: ResMut<Menus>, menu: M
 }*/
 
 fn click_system(
-    item_query: Query<(&Interaction, &Text, &InteractionItem), Mutated<Interaction>>,
+    item_query: Query<(&Interaction, &Text, &InteractionItem), Changed<Interaction>>,
     mut clearm: EventWriter<ClearMessage>,
     queue: EventWriter<MessageEvent>,
     mut appstate: ResMut<State<GameState>>,
@@ -295,7 +295,7 @@ fn click_system(
                     show_menu(queue, m);
                 } else {
                     clearm.send(ClearMessage);
-                    appstate.set_next(GameState::Running).unwrap();
+                    appstate.set(GameState::Running).unwrap();
                 }
             } else if let Some(m) = menus.menus.last() {
                 menuqueue.send(MenuItemEvent {
@@ -308,7 +308,7 @@ fn click_system(
 }
 
 fn click_nav_system(
-    item_query: Query<(&Interaction, &TextureAtlasSprite, &NavigationPart), Mutated<Interaction>>,
+    item_query: Query<(&Interaction, &TextureAtlasSprite, &NavigationPart), Changed<Interaction>>,
     mut menus: ResMut<Menus>,
     queue: EventWriter<MessageEvent>,
     journal: Res<Journal>,
@@ -341,7 +341,7 @@ fn close_menu(
             show_menu(queue, m);
         } else {
             clearm.send(ClearMessage);
-            appstate.set_next(GameState::Running).unwrap();
+            appstate.set(GameState::Running).unwrap();
         }
     }
     //}
@@ -368,7 +368,7 @@ fn menu_start(
     mut menus: ResMut<Menus>,
 ) {
     if let Some(me) = event_reader.iter().next() {
-        appstate.set_next(GameState::Menu).unwrap();
+        appstate.set(GameState::Menu).unwrap();
         menus.clear();
         push_menu(queue, menus, me.menu.clone());
     }
@@ -380,7 +380,7 @@ fn menu_close(
     mut menus: ResMut<Menus>,
 ) {
     if let Some(_me) = event_reader.iter().next() {
-        appstate.set_next(GameState::Running).unwrap();
+        appstate.set(GameState::Running).unwrap();
         menus.clear();
         //clearm.send(ClearMessage);
     }
@@ -474,7 +474,7 @@ fn save_event(
         .iter()
         .find(|e| e.menu == SYSTEM && e.item == SAVE)
     {
-        appstate.set_next(GameState::Save).unwrap();
+        appstate.set(GameState::Save).unwrap();
     }
 }
 
@@ -489,7 +489,7 @@ fn save(world: &mut World) {
     .unwrap();
 
     let mut appstate = world.get_resource_mut::<State<GameState>>().unwrap();
-    appstate.set_next(GameState::Running).unwrap();
+    appstate.set(GameState::Running).unwrap();
     let mut menus = world.get_resource_mut::<Menus>().unwrap();
     menus.clear();
     let mut clearm = world
@@ -506,7 +506,7 @@ fn load_event(
         .iter()
         .find(|e| e.menu == SYSTEM && e.item == LOAD)
     {
-        appstate.set_next(GameState::Clean).unwrap();
+        appstate.set(GameState::Clean).unwrap();
     }
 }
 
@@ -520,7 +520,7 @@ fn clean(world: &mut World) {
     ss.clean_world(world);
     world.insert_resource::<SaveState>(ss);
     let mut appstate = world.get_resource_mut::<State<GameState>>().unwrap();
-    appstate.set_next(GameState::Reset).unwrap();
+    appstate.set(GameState::Reset).unwrap();
 }
 
 fn reset(
@@ -546,14 +546,14 @@ fn reset(
         texture_atlases,
         textures,
     );
-    appstate.set_next(GameState::Load).unwrap();
+    appstate.set(GameState::Load).unwrap();
 }
 
 fn load(world: &mut World) {
     let ss: SaveState = world.remove_resource::<SaveState>().unwrap();
     ss.to_world(world);
     let mut appstate = world.get_resource_mut::<State<GameState>>().unwrap();
-    appstate.set_next(GameState::Running).unwrap();
+    appstate.set(GameState::Running).unwrap();
     let mut menus = world.get_resource_mut::<Menus>().unwrap();
     menus.clear();
     let mut clearm = world

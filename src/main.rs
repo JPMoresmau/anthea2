@@ -64,23 +64,23 @@ impl Plugin for AntheaPlugin {
             .init_asset_loader::<MapAssetLoader>()
             .add_asset::<TileSet>()
             .init_asset_loader::<TileSetAssetLoader>()
-            .add_stage_after(CoreStage::Update, STAGE, StateStage::<GameState>::default())
-            .on_state_enter(STAGE, GameState::Setup, load_assets.system())
-            .on_state_update(STAGE, GameState::Setup, check_assets.system())
-            .on_state_enter(STAGE, GameState::Background, setup_camera.system())
-            .on_state_update(STAGE, GameState::Title, setup_ui.system())
-            .on_state_enter(STAGE, GameState::Background, setup_map.system())
-            .on_state_enter(STAGE, GameState::Start, setup_items.system())
-            .on_state_enter(STAGE, GameState::Start, setup_body.system())
-            .on_state_enter(STAGE, GameState::Start, setup_people.system())
-            .on_state_update(STAGE, GameState::Start, start_system.system())
-            .on_state_update(STAGE, GameState::Running, player_movement_system.system())
-            .on_state_update(STAGE, GameState::Running, cursor_system.system())
-            .on_state_update(STAGE, GameState::Running, click_system.system())
-            .on_state_update(STAGE, GameState::Running, pickup_item.system())
-            .on_state_update(STAGE, GameState::Running, body_change.system())
-            .on_state_update(STAGE, GameState::Running, journal.system())
-            .on_state_update(STAGE, GameState::Running, remove_tile.system())
+            .add_state(GameState::Setup)
+            .add_system_set(SystemSet::on_enter(GameState::Setup).with_system(load_assets.system()))
+            .add_system_set(SystemSet::on_update(GameState::Setup).with_system(check_assets.system()))
+            .add_system_set(SystemSet::on_enter(GameState::Background).with_system(setup_camera.system()))
+            .add_system_set(SystemSet::on_update(GameState::Title).with_system(setup_ui.system()))
+            .add_system_set(SystemSet::on_enter(GameState::Background).with_system(setup_map.system()))
+            .add_system_set(SystemSet::on_enter(GameState::Start).with_system(setup_items.system()))
+            .add_system_set(SystemSet::on_enter(GameState::Start).with_system(setup_body.system()))
+            .add_system_set(SystemSet::on_enter(GameState::Start).with_system(setup_people.system()))
+            .add_system_set(SystemSet::on_update(GameState::Start).with_system(start_system.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(player_movement_system.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(cursor_system.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(click_system.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(pickup_item.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(body_change.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(journal.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system( remove_tile.system()))
             .add_plugin(MenuPlugin)
             .add_plugin(UIPlugin)
             //.add_system(visibility_system.system())
@@ -89,6 +89,7 @@ impl Plugin for AntheaPlugin {
 }
 
 fn load_assets(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Res<AssetServer>) {
+    println!("loading assets...");
     rpg_sprite_handles.people_handles = asset_server.load_folder("sprites/people").unwrap();
     rpg_sprite_handles.tile_handles = asset_server.load_folder("sprites/tiles").unwrap();
     rpg_sprite_handles.item_handles = asset_server.load_folder("sprites/items").unwrap();
@@ -119,8 +120,10 @@ fn check_assets(
             .chain(std::iter::once(rpg_sprite_handles.paper_handle.id))
             .chain(std::iter::once(rpg_sprite_handles.font_handle.id)),
     );
+ 
     if let LoadState::Loaded = ls {
-        state.set_next(GameState::Title).unwrap();
+        println!("assets loaded");
+        state.set(GameState::Title).unwrap();
     }
 }
 
@@ -212,7 +215,7 @@ fn pickup_item(
     if let Some(i) = stage.remove_item_from_pos(&state.map_position.inverse_x()) {
         //println!("Item: {}",i.name);
         for (e, _i2) in item_query.iter().filter(|(_e, i2)| i.name == i2.name) {
-            commands.despawn_recursive(e);
+            commands.entity(e).despawn_recursive();
         }
         audio.play(asset_server.get_handle("sounds/pickup.ogg"));
         if i.consumable {
@@ -273,7 +276,7 @@ fn start_system(
 ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
         clearm.send(ClearMessage);
-        appstate.set_next(GameState::Running).unwrap();
+        appstate.set(GameState::Running).unwrap();
         for (transform, mut vis) in &mut sprite_query.iter_mut() {
             if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
                 vis.is_visible = true;
@@ -301,7 +304,7 @@ fn click_system(
     mut menu: EventWriter<MenuEvent>,
 ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        //println!("left mouse currently pressed as: {} {}",location.x,location.y);
+        println!("left mouse currently pressed as: {} {}",location.x,location.y);
         if location.x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
             && location.y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
         {
@@ -401,7 +404,7 @@ fn remove_tile(
             for e in tes.entities.iter() {
                 if let Ok(MapTile(layer)) = maptile_query.get(*e) {
                     if *layer == rte.layer {
-                        commands.despawn_recursive(*e);
+                        commands.entity(*e).despawn_recursive();
                         event_memory.removed_tiles.push(rte.clone());
                     }
                 }

@@ -5,9 +5,9 @@ use bevy::{prelude::*, sprite::TextureAtlasBuilder};
 
 pub fn setup_camera(mut commands: Commands) {
     commands
-        .spawn(OrthographicCameraBundle::new_2d())
-        .with(MainCamera)
-        .spawn(UiCameraBundle::default());
+        .spawn_bundle(OrthographicCameraBundle::new_2d()).insert(MainCamera);
+    commands
+        .spawn_bundle(UiCameraBundle::default());
 }
 
 pub fn setup_map(
@@ -34,7 +34,7 @@ pub fn setup_map(
         texture_atlases,
         textures,
     );
-    appstate.set_next(GameState::Start).unwrap();
+    appstate.set(GameState::Start).unwrap();
 }
 
 pub fn do_setup_map(
@@ -72,8 +72,8 @@ pub fn do_setup_map(
                 let tile_handle = asset_server.get_handle(path.as_str());
                 let tile_index = texture_atlas.get_texture_index(&tile_handle).unwrap();
                 let vec3 = pos.to_vec3();
-                commands
-                    .spawn(SpriteSheetBundle {
+                let ec=commands
+                    .spawn_bundle(SpriteSheetBundle {
                         sprite: TextureAtlasSprite::new(tile_index as u32),
                         texture_atlas: atlas_handle.clone(),
                         transform: Transform::from_translation(vec3),
@@ -83,11 +83,13 @@ pub fn do_setup_map(
                         },
                         ..Default::default()
                     })
-                    .with(MapTile(ix));
+                    .insert(MapTile(ix))
+                    .id()
+                    ;
 
                 let rel_pos = state.map_position.to_relative(&pos);
                 let e = state.positions.entry(rel_pos.clone()).or_default();
-                e.entities.push(commands.current_entity().unwrap());
+                e.entities.push(ec);
                 let pass = is_tile_passable(path);
                 e.passable = e.passable && pass;
                 if ix == 0 && !pass {
@@ -137,7 +139,7 @@ pub fn setup_items(
         .to_vec3_z(0.3);
         let vis = false; //is_visible(&pos,None);
         commands
-            .spawn(SpriteSheetBundle {
+            .spawn_bundle(SpriteSheetBundle {
                 sprite: TextureAtlasSprite::new(item_index as u32),
                 texture_atlas: atlas_handle.clone(),
                 transform: Transform::from_translation(pos),
@@ -147,7 +149,7 @@ pub fn setup_items(
                 },
                 ..Default::default()
             })
-            .with(item.clone());
+            .insert(item.clone());
     }
 
     let item_handle = asset_server.get_handle("sprites/items/help.png");
@@ -158,7 +160,7 @@ pub fn setup_items(
     }
     .to_vec3_z(0.3);
     commands
-        .spawn(SpriteSheetBundle {
+        .spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(item_index as u32),
             texture_atlas: atlas_handle,
             transform: Transform::from_translation(pos),
@@ -168,7 +170,7 @@ pub fn setup_items(
             },
             ..Default::default()
         })
-        .with(Help);
+        .insert(Help);
 }
 
 pub fn setup_body(
@@ -205,42 +207,42 @@ pub fn setup_body(
     let atlas_handle = texture_atlases.add(texture_atlas);
 
     let pos = Position::default().to_vec3_z(0.3);
-    commands.spawn((Player,)).with_children(|p| {
-        p.spawn(SpriteSheetBundle {
+    commands.spawn_bundle((Player,)).with_children(|p| {
+        p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(body_index as u32),
             texture_atlas: atlas_handle.clone(),
             transform: Transform::from_translation(pos),
             ..Default::default()
         })
-        .with(PlayerPart::Body)
-        .spawn(SpriteSheetBundle {
+        .insert(PlayerPart::Body);
+        p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(pants_index as u32),
             texture_atlas: atlas_handle.clone(),
             transform: Transform::from_translation(pos),
             ..Default::default()
         })
-        .with(PlayerPart::Pants)
-        .spawn(SpriteSheetBundle {
+        .insert(PlayerPart::Pants);
+        p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(top_index as u32),
             texture_atlas: atlas_handle.clone(),
             transform: Transform::from_translation(pos),
             ..Default::default()
         })
-        .with(PlayerPart::Top)
-        .spawn(SpriteSheetBundle {
+        .insert(PlayerPart::Top);
+        p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(hair_index as u32),
             texture_atlas: atlas_handle.clone(),
             transform: Transform::from_translation(pos),
             ..Default::default()
         })
-        .with(PlayerPart::Hair)
-        .spawn(SpriteSheetBundle {
+        .insert(PlayerPart::Hair);
+        p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(hand_index as u32),
             texture_atlas: atlas_handle.clone(),
             transform: Transform::from_translation(pos),
             ..Default::default()
         })
-        .with(PlayerPart::RightHand);
+        .insert(PlayerPart::RightHand);
     });
 }
 
@@ -275,7 +277,7 @@ pub fn setup_people(
         .to_vec3_z(0.3);
         let vis = false; //is_visible(&pos,None);
         commands
-            .spawn(SpriteSheetBundle {
+            .spawn_bundle(SpriteSheetBundle {
                 sprite: TextureAtlasSprite::new(chr_index as u32),
                 texture_atlas: atlas_handle.clone(),
                 transform: Transform::from_translation(pos),
@@ -285,7 +287,7 @@ pub fn setup_people(
                 },
                 ..Default::default()
             })
-            .with(chr.clone());
+            .insert(chr.clone());
     }
 }
 

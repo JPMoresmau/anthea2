@@ -132,6 +132,7 @@ pub fn setup_ui(
     mut queue: EventWriter<MessageEvent>,
     mut state: ResMut<State<GameState>>,
 ) {
+    println!("setting UI up...");
     let mut atlas = TextureAtlas::new_empty(handles.ui_handle.clone(), Vec2::new(1024.0, 666.0));
 
     for ((x1, y1), (x2, y2)) in DIMENSIONS {
@@ -148,7 +149,7 @@ pub fn setup_ui(
     }
 
     commands
-        .spawn(SpriteBundle {
+        .spawn_bundle(SpriteBundle {
             material: materials.add(handles.paper_handle.clone().into()),
             visible: Visible {
                 is_transparent: true,
@@ -156,10 +157,10 @@ pub fn setup_ui(
             },
             ..Default::default()
         })
-        .with(Background);
+        .insert(Background);
 
     commands
-        .spawn(NodeBundle {
+        .spawn_bundle(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 border: bevy::prelude::Rect::all(Val::Px(25.0)),
@@ -173,7 +174,7 @@ pub fn setup_ui(
         })
         .with_children(|parent| {
             parent
-                .spawn(TextBundle {
+                .spawn_bundle(TextBundle {
                     style: Style {
                         //border: bevy::prelude::Rect::all(Val::Px(50.0)),
                         align_self: AlignSelf::Center,
@@ -202,7 +203,7 @@ pub fn setup_ui(
             },
                     ..Default::default()
                 })
-                .with(MessageText);
+                .insert(MessageText);
         });
     queue.send(MessageEvent::new_multi(vec![
         Message {
@@ -218,7 +219,7 @@ pub fn setup_ui(
             style: MessageStyle::Help,
         },
     ]));
-    state.set_next(GameState::Background).unwrap();
+    state.set(GameState::Background).unwrap();
 }
 
 fn spawn_frame(
@@ -228,7 +229,7 @@ fn spawn_frame(
     tile_index: usize,
 ) {
     commands
-        .spawn(SpriteSheetBundle {
+        .spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(tile_index as u32),
             texture_atlas: texture_atlas_handle,
             visible: Visible {
@@ -237,7 +238,7 @@ fn spawn_frame(
             },
             ..Default::default()
         })
-        .with(part);
+        .insert(part);
 }
 
 /*fn spawn_navigation(commands: &mut Commands,
@@ -302,8 +303,7 @@ fn message_system(
             let mut sep = String::new();
             text.sections.clear();
 
-            commands.set_current_entity(parent.0);
-            commands.with_children(|parent| {
+            commands.entity(parent.0).with_children(|parent| {
                 let mut needs_close = false;
                 for msg in me.messages.iter() {
                     //println!("Message: {:?}",msg);
@@ -339,7 +339,7 @@ fn message_system(
 
 fn build_interaction<S1: Into<String>>(parent: &mut ChildBuilder, ts: TextSection, code: S1) {
     parent
-        .spawn(TextBundle {
+        .spawn_bundle(TextBundle {
             style: Style {
                 //align_self: AlignSelf::Center,
                 margin: bevy::prelude::Rect::all(Val::Px(5.0)),
@@ -359,8 +359,8 @@ fn build_interaction<S1: Into<String>>(parent: &mut ChildBuilder, ts: TextSectio
             },
             ..Default::default()
         })
-        .with(Interaction::None)
-        .with(InteractionItem(code.into()));
+        .insert(Interaction::None)
+        .insert(InteractionItem(code.into()));
 }
 
 fn build_table<S1: Into<String>>(
@@ -370,7 +370,7 @@ fn build_table<S1: Into<String>>(
     data: &[String],
 ) {
     parent
-        .spawn(NodeBundle {
+        .spawn_bundle(NodeBundle {
             style: Style {
                 margin: bevy::prelude::Rect::all(Val::Px(5.0)),
                 max_size: Size::new(Val::Px(SCREEN_WIDTH as f32 * 0.4), Val::Px(16.0)),
@@ -384,10 +384,10 @@ fn build_table<S1: Into<String>>(
             },
             ..Default::default()
         })
-        .with(TableItem)
+        .insert(TableItem)
         .with_children(|np| {
             for txt in std::iter::once(&fst.into()).chain(data.iter()) {
-                np.spawn(TextBundle {
+                np.spawn_bundle(TextBundle {
                     style: Style {
                         align_self: AlignSelf::Center,
                         ..Default::default()
@@ -408,7 +408,7 @@ fn build_table<S1: Into<String>>(
 
 fn build_close(parent: &mut ChildBuilder, handles: &Res<AntheaHandles>) {
     parent
-        .spawn(TextBundle {
+        .spawn_bundle(TextBundle {
             style: Style {
                 align_self: AlignSelf::Center,
                 ..Default::default()
@@ -424,8 +424,8 @@ fn build_close(parent: &mut ChildBuilder, handles: &Res<AntheaHandles>) {
             },
             ..Default::default()
         })
-        .with(Interaction::None)
-        .with(InteractionItem(CLOSE.into()));
+        .insert(Interaction::None)
+        .insert(InteractionItem(CLOSE.into()));
 }
 
 fn build_navigation(
@@ -437,7 +437,7 @@ fn build_navigation(
     let btile = if backward { l } else { l + 2 };
     let ftile = if forward { l + 1 } else { l + 3 };
     parent
-        .spawn(NodeBundle {
+        .spawn_bundle(NodeBundle {
             style: Style {
                 size: Size::new(Val::Px(100.0), Val::Px(30.0)),
                 justify_content: JustifyContent::SpaceBetween,
@@ -450,33 +450,34 @@ fn build_navigation(
             ..Default::default()
         })
         .with_children(|np| {
-            np.spawn(SpriteSheetBundle {
+            let mut ec=np.spawn_bundle(SpriteSheetBundle {
                 sprite: TextureAtlasSprite::new(btile as u32),
                 texture_atlas: handles.ui_texture_atlas_handle.clone(),
                 ..Default::default()
-            })
-            .with(Style::default())
-            .with(CalculatedSize {
-                size: Size::new(30.0, 30.0),
-            })
-            .with(Node::default())
-            .with(NavigationPart::Back);
+                });
+            ec.insert(Style::default())
+                .insert(CalculatedSize {
+                    size: Size::new(30.0, 30.0),
+                })
+                .insert(Node::default())
+                .insert(NavigationPart::Back)
+                ;
             if backward {
-                np.with(FocusPolicy::Block).with(Interaction::None);
+                ec.insert(FocusPolicy::Block).insert(Interaction::None);
             }
-            np.spawn(SpriteSheetBundle {
+            let mut ec=np.spawn_bundle(SpriteSheetBundle {
                 sprite: TextureAtlasSprite::new(ftile as u32),
                 texture_atlas: handles.ui_texture_atlas_handle.clone(),
                 ..Default::default()
-            })
-            .with(Style::default())
-            .with(CalculatedSize {
-                size: Size::new(30.0, 30.0),
-            })
-            .with(Node::default())
-            .with(NavigationPart::Forward);
+                });
+            ec.insert(Style::default())
+                .insert(CalculatedSize {
+                    size: Size::new(30.0, 30.0),
+                })
+                .insert(Node::default())
+                .insert(NavigationPart::Forward);
             if forward {
-                np.with(FocusPolicy::Block).with(Interaction::None);
+               ec.insert(FocusPolicy::Block).insert(Interaction::None);
             }
         });
 }
@@ -485,7 +486,7 @@ fn message_decoration_system(
     text_query: Query<
         (&Text, &CalculatedSize, &Transform, &MessageText),
         (
-            Mutated<CalculatedSize>,
+            Changed<CalculatedSize>,
             Without<Background>,
             Without<MessageFramePart>,
         ),
@@ -682,12 +683,12 @@ fn clear(
         t.sections.clear()
     }
     for (_m, _cs, _t, p) in nav_query.iter().take(1) {
-        commands.despawn_recursive(p.0);
+        commands.entity(p.0).despawn_recursive();
     }
     for e in menu_query.iter() {
-        commands.despawn_recursive(e);
+        commands.entity(e).despawn_recursive();
     }
     for e in table_query.iter() {
-        commands.despawn_recursive(e);
+        commands.entity(e).despawn_recursive();
     }
 }
