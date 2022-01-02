@@ -161,6 +161,89 @@ impl Position {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SpritePosition {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl SpritePosition {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+
+    pub fn from_coords(x: f32, y: f32) -> Self {
+        Self { 
+            x: (x/SPRITE_SIZE as f32).round() as i32,
+            y: (y/SPRITE_SIZE as f32).round() as i32, 
+         }
+    }
+
+    pub fn to_vec3(&self) -> Vec3 {
+        Vec3::new(self.x as f32, self.y as f32, 0.0)
+    }
+
+    pub fn to_vec3_z(&self, z: f32) -> Vec3 {
+        Vec3::new(self.x as f32, self.y as f32, z)
+    }
+
+    pub fn from_vec3(v: &Vec3) -> SpritePosition {
+        SpritePosition {
+            x: v.x as i32,
+            y: v.y as i32,
+        }
+    }
+
+    pub fn copy(&mut self, pos: &SpritePosition) {
+        self.x = pos.x;
+        self.y = pos.y;
+    }
+
+    pub fn to_relative(&self, pos: &SpritePosition) -> SpritePosition {
+        SpritePosition {
+            x: self.x - pos.x,
+            y: self.y - pos.y,
+        }
+    }
+
+    pub fn add(&self, pos: &SpritePosition) -> SpritePosition {
+        SpritePosition {
+            x: self.x + pos.x,
+            y: self.y + pos.y,
+        }
+    }
+
+    pub fn inverse(&self) -> SpritePosition {
+        SpritePosition {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+
+    pub fn inverse_x(&self) -> SpritePosition {
+        SpritePosition {
+            x: -self.x,
+            y: self.y,
+        }
+    }
+
+    pub fn distance(&self, pos: &SpritePosition) -> i32 {
+        (self.x - pos.x).abs().max((self.y - pos.y).abs())
+    }
+}
+
+impl From<&SpritePosition> for Position {
+    fn from(sp: &SpritePosition) -> Self {
+        sprite_position(sp.x,sp.y)
+    }
+}
+
+impl From<Position> for SpritePosition {
+    fn from(p: Position) -> Self {
+        SpritePosition::from_coords(p.x as f32,p.y as f32)
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Dimension {
     topleft: Position,
     bottomright: Position,
@@ -179,6 +262,38 @@ impl Dimension {
             && pos.x <= self.bottomright.x
             && pos.y >= self.topleft.y
             && pos.y <= self.bottomright.y
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SpriteDimension {
+    topleft: SpritePosition,
+    bottomright: SpritePosition,
+}
+
+impl SpriteDimension {
+    pub fn new(topleft: SpritePosition, bottomright: SpritePosition) -> Self {
+        Self {
+            topleft,
+            bottomright,
+        }
+    }
+
+    pub fn contains(&self, pos: &SpritePosition) -> bool {
+        pos.x >= self.topleft.x
+            && pos.x <= self.bottomright.x
+            && pos.y >= self.topleft.y
+            && pos.y <= self.bottomright.y
+    }
+
+    pub fn positions(&self) -> Vec<SpritePosition> {
+        let mut v= vec![];
+        for x in self.topleft.x ..= self.bottomright.x {
+            for y in self.topleft.y ..= self.bottomright.y {
+                v.push(SpritePosition::new(x,y));
+            }
+        }
+        v
     }
 }
 
@@ -286,8 +401,8 @@ pub struct Item {
     pub name: String,
     pub description: String,
     pub sprite: String,
-    pub position: Position,
-    pub dimension: Dimension,
+    pub position: SpritePosition,
+    //pub dimension: SpriteDimension,
     pub consumable: bool,
 }
 
@@ -303,8 +418,8 @@ impl Item {
             name: name.into(),
             description: description.into(),
             sprite: sprite.into(),
-            position: sprite_position(x1, y1),
-            dimension: sprite_dimensions(x1, y1, x1, y1),
+            position: SpritePosition::new(x1, y1),
+            //dimension: SpriteDimension::new(SpritePosition::new(x1, y1), SpritePosition::new(x1, y1)),
             consumable: false,
         }
     }

@@ -8,9 +8,9 @@ pub struct Area {
     pub map_index: usize,
     pub start: Position,
     pub rooms: HashMap<String, Room>,
-    pub affordances: HashMap<String, Affordance>,
-    pub items: HashMap<String, Item>,
-    pub characters: HashMap<String, Character>,
+    pub affordances: HashMap<SpritePosition, Affordance>,
+    pub items: HashMap<SpritePosition, Item>,
+    pub characters: HashMap<SpritePosition, Character>,
 }
 
 impl Area {
@@ -31,50 +31,53 @@ impl Area {
         self
     }
 
-    pub fn room_from_position<'a>(&'a self, pos: &Position) -> Option<&'a Room> {
+    pub fn room_from_position<'a>(&'a self, pos: &SpritePosition) -> Option<&'a Room> {
         self.rooms.values().find(|r| r.contains(pos))
     }
 
-    pub fn room_from_coords(&self, x: f32, y: f32) -> Option<&Room> {
+    /*pub fn room_from_coords(&self, x: f32, y: f32) -> Option<&Room> {
         self.room_from_position(&Position::new(x as i32, y as i32))
-    }
+    }*/
 
     pub fn add_affordance(&mut self, aff: Affordance) -> &mut Self {
-        self.affordances.insert(aff.name.clone(), aff);
+        for pos in aff.dimension.positions().into_iter(){
+            self.affordances.insert(pos, aff.clone());
+        }
         self
     }
 
-    pub fn affordance_from_position<'a>(&'a self, pos: &Position) -> Option<&'a Affordance> {
-        self.affordances.values().find(|r| r.position.contains(pos))
+    pub fn affordance_from_position<'a>(&'a self, pos: &SpritePosition) -> Option<&'a Affordance> {
+        self.affordances.get(pos)
     }
 
+    /*
     pub fn affordance_from_coords(&self, x: f32, y: f32) -> Option<&Affordance> {
         self.affordance_from_position(&Position::new(x as i32, y as i32))
-    }
+    }*/
 
     pub fn add_character(&mut self, chr: Character) -> &mut Self {
-        self.characters.insert(chr.name.clone(), chr);
+        self.characters.insert(chr.position.clone(), chr);
         self
     }
 
-    pub fn character_from_position<'a>(&'a self, pos: &Position) -> Option<&'a Character> {
-        self.characters.values().find(|r| r.dimension.contains(pos))
+    pub fn character_from_position<'a>(&'a self, pos: &SpritePosition) -> Option<&'a Character> {
+        self.characters.get(pos)
     }
 
-    pub fn character_from_coords(&self, x: f32, y: f32) -> Option<&Character> {
+    /*pub fn character_from_coords(&self, x: f32, y: f32) -> Option<&Character> {
         self.character_from_position(&Position::new(x as i32, y as i32))
-    }
+    }*/
 
     pub fn add_item(&mut self, item: Item) -> &mut Self {
-        self.items.insert(item.name.clone(), item);
+        self.items.insert(item.position.clone(), item);
         self
     }
 
-    pub fn item_from_position<'a>(&'a self, pos: &Position) -> Option<&'a Item> {
-        self.items.values().find(|r| r.dimension.contains(pos))
+    pub fn item_from_position<'a>(&'a self, pos: &SpritePosition) -> Option<&'a Item> {
+        self.items.get(pos)
     }
 
-    pub fn item_from_coords(&self, x: f32, y: f32) -> Option<&Item> {
+    /*pub fn item_from_coords(&self, x: f32, y: f32) -> Option<&Item> {
         self.item_from_position(&Position::new(x as i32, y as i32))
     }
 
@@ -84,14 +87,14 @@ impl Area {
         } else {
             None
         }
-    }
+    }*/
 }
 
 #[derive(Debug, Clone)]
 pub struct Room {
     pub name: String,
     pub description: String,
-    pub dimensions: Vec<Dimension>,
+    pub dimensions: Vec<SpriteDimension>,
 }
 
 impl Room {
@@ -106,16 +109,16 @@ impl Room {
         Self {
             name: name.into(),
             description: description.into(),
-            dimensions: vec![sprite_dimensions(x1, y1, x2, y2)],
+            dimensions: vec![SpriteDimension::new(SpritePosition::new(x1, y1), SpritePosition::new(x2, y2))],
         }
     }
 
     pub fn add_dimensions(mut self, x1: i32, y1: i32, x2: i32, y2: i32) -> Self {
-        self.dimensions.push(sprite_dimensions(x1, y1, x2, y2));
+        self.dimensions.push(SpriteDimension::new(SpritePosition::new(x1, y1), SpritePosition::new(x2, y2)));
         self
     }
 
-    pub fn contains(&self, pos: &Position) -> bool {
+    pub fn contains(&self, pos: &SpritePosition) -> bool {
         self.dimensions.iter().any(|d| d.contains(pos))
     }
 }
@@ -124,7 +127,7 @@ impl Room {
 pub struct Affordance {
     pub name: String,
     pub description: String,
-    pub position: Dimension,
+    pub dimension: SpriteDimension,
 }
 
 impl Affordance {
@@ -137,7 +140,7 @@ impl Affordance {
         Self {
             name: name.into(),
             description: description.into(),
-            position: sprite_dimensions(x1, y1, x1, y1),
+            dimension: SpriteDimension::new(SpritePosition::new(x1, y1), SpritePosition::new(x1, y1)),
         }
     }
 }
@@ -153,8 +156,7 @@ pub struct Character {
     pub name: String,
     pub description: String,
     pub sprite: String,
-    pub position: Position,
-    pub dimension: Dimension,
+    pub position: SpritePosition,
 }
 
 impl Character {
@@ -169,8 +171,7 @@ impl Character {
             name: name.into(),
             description: description.into(),
             sprite: sprite.into(),
-            position: sprite_position(x1, y1),
-            dimension: sprite_dimensions(x1, y1, x1, y1),
+            position: SpritePosition::new(x1, y1),
         }
     }
 }

@@ -624,7 +624,7 @@ fn action_rats(
             for (e, _i2) in character_query.iter().filter(|(_e, c)| c.name == RATS) {
                 commands.entity(e).despawn_recursive();
             }
-            area.characters.remove(RATS);
+            area.characters.retain(|_, v| v.name==RATS);
         }
     }
 }

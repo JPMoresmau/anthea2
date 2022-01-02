@@ -571,8 +571,8 @@ pub struct SaveState {
     flags: QuestFlags,
     spells: Spells,
     event_memory: EventMemory,
-    area_affordances: HashMap<String, Affordance>,
-    area_items: HashMap<String, Item>,
+    area_affordances: HashMap<SpritePosition, Affordance>,
+    area_items: HashMap<SpritePosition, Item>,
 }
 
 impl SaveState {

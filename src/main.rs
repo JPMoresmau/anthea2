@@ -89,7 +89,7 @@ impl Plugin for AntheaPlugin {
 }
 
 fn load_assets(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Res<AssetServer>) {
-    println!("loading assets...");
+    println!("Loading assets...");
     rpg_sprite_handles.people_handles = asset_server.load_folder("sprites/people").unwrap();
     rpg_sprite_handles.tile_handles = asset_server.load_folder("sprites/tiles").unwrap();
     rpg_sprite_handles.item_handles = asset_server.load_folder("sprites/items").unwrap();
@@ -122,7 +122,7 @@ fn check_assets(
     );
  
     if let LoadState::Loaded = ls {
-        println!("assets loaded");
+        println!("Assets loaded");
         state.set(GameState::Title).unwrap();
     }
 }
@@ -142,13 +142,14 @@ fn player_movement_system(
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
 ) {
-    state.last_move += time.delta().as_millis();
-    if state.last_move < MOVE_DELAY {
-        return;
-    }
-
+    
     //let (mut pos,mut map) = (&mut (state.player_position),&mut state.map_position);
     for i in keyboard_input.get_pressed() {
+        state.last_move += time.delta().as_millis();
+        if state.last_move < MOVE_DELAY {
+            return;
+        }
+    
         let mut new_pos = state.map_position.clone();
         match i {
             KeyCode::Right => new_pos.x -= SPRITE_SIZE,
@@ -171,10 +172,11 @@ fn player_movement_system(
             let rel_x = -(new_pos.x as f32);
             let rel_y = new_pos.y as f32;
 
-            if let Some(a) = stage.affordance_from_coords(rel_x, rel_y) {
+            let sprite_position=SpritePosition::from_coords(rel_x,rel_y);
+            if let Some(a) = stage.affordance_from_position(&sprite_position) {
                 // println!("Affordance: {}",a.name);
                 ev_affordance.send(AffordanceEvent(a.name.clone()));
-            } else if let Some(c) = stage.character_from_coords(rel_x, rel_y) {
+            } else if let Some(c) = stage.character_from_position(&sprite_position) {
                 //println!("Character: {}",c.name);
                 ev_character.send(CharacterEvent(c.name.clone()));
             } else {
@@ -212,7 +214,7 @@ fn pickup_item(
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
 ) {
-    if let Some(i) = stage.remove_item_from_pos(&state.map_position.inverse_x()) {
+    if let Some(i) = stage.items.remove(&state.map_position.inverse_x().into()) {
         //println!("Item: {}",i.name);
         for (e, _i2) in item_query.iter().filter(|(_e, i2)| i.name == i2.name) {
             commands.entity(e).despawn_recursive();
@@ -302,58 +304,75 @@ fn click_system(
     stage: Res<Area>,
     mut menu: EventWriter<MenuEvent>,
 ) {
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        if let Some((x,y)) = location.coords {
-            //println!("left mouse currently pressed as: {} {}",x,y);
-            if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
-                && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
+    let pressed= mouse_button_input.just_pressed(MouseButton::Left);
+    if !pressed {
+        return;
+    }
+    if let Some((x,y)) = location.coords {
+        //println!("left mouse currently pressed as: {} {}",x,y);
+        if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
+            && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
+        {
+            location.coords=None;
+            if pressed {
+                menu.send(MenuEvent::new(system_menu()));
+            } else {
+                queue.send(MessageEvent::new("System menu", MessageStyle::Info));
+            }
+            return;
+        }
+
+        let rel_x = x - (state.map_position.x as f32);
+        let rel_y = -(y - (state.map_position.y as f32));
+        //println!("relative: {:?},{:?}",rel_x,rel_y);
+
+        let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
+        let mut revealed = false;
+        for rp in state.revealed.iter() {
+            if rp.distance(&rel_pos) <= SPRITE_SIZE / 2 {
+                revealed = true;
+                break;
+            }
+        }
+
+        let sprite_position=SpritePosition::from_coords(rel_x,rel_y);
+        //println!("sprite pos: {:?},{:?}",(rel_x/SPRITE_SIZE as f32).round() as i32 ,(rel_y/SPRITE_SIZE as f32).round() as i32);
+
+        if revealed {
+            if x.abs() <= SPRITE_SIZE as f32 / 2.0
+                && y.abs() <= SPRITE_SIZE as f32 / 2.0
             {
                 location.coords=None;
-                menu.send(MenuEvent::new(system_menu()));
-                return;
-            }
-
-            let rel_x = x - (state.map_position.x as f32);
-            let rel_y = -(y - (state.map_position.y as f32));
-            //println!("relative: {:?},{:?}",rel_x,rel_y);
-
-            let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
-            let mut revealed = false;
-            for rp in state.revealed.iter() {
-                if rp.distance(&rel_pos) <= SPRITE_SIZE / 2 {
-                    revealed = true;
-                    break;
-                }
-            }
-            if revealed {
-                if x.abs() <= SPRITE_SIZE as f32 / 2.0
-                    && y.abs() <= SPRITE_SIZE as f32 / 2.0
-                {
-                    location.coords=None;
-                    //println!("click on center");
-                    //appstate.set_next(GameState::Menu).unwrap();
+                //println!("click on center");
+                //appstate.set_next(GameState::Menu).unwrap();
+                if pressed {
                     menu.send(MenuEvent::new(main_menu()));
-                    /*queue.send(MessageEvent::new_multi(vec![
-                        Message::new("Journal",MessageStyle::Interaction),
-                        Message::new("Inventory",MessageStyle::Interaction),
-                        Message::new("Talents",MessageStyle::Interaction),
-                    ]));*/
-                } else if let Some(c) = stage.character_from_coords(rel_x, rel_y) {
-                    queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
-                } else if let Some(a) = stage.affordance_from_coords(rel_x, rel_y) {
-                    queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
-                } else if let Some(i) = stage.item_from_coords(rel_x, rel_y) {
-                    queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
-                } else if let Some(r) = stage.room_from_coords(rel_x, rel_y) {
-                    queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
                 } else {
-                    clearm.send(ClearMessage);
+                    queue.send(MessageEvent::new("Anthea (click for layer menu)", MessageStyle::Info));
                 }
+                /*queue.send(MessageEvent::new_multi(vec![
+                    Message::new("Journal",MessageStyle::Interaction),
+                    Message::new("Inventory",MessageStyle::Interaction),
+                    Message::new("Talents",MessageStyle::Interaction),
+                ]));*/
+            } else if let Some(c) = stage.character_from_position(&sprite_position) {
+                queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
+            } else if let Some(a) = stage.affordance_from_position(&sprite_position) {
+                queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
+            } else if let Some(i) = stage.item_from_position(&sprite_position)  {
+                queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
+            } else if let Some(r) = stage.room_from_position(&sprite_position) {
+                queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
             } else {
+                clearm.send(ClearMessage);
+            }
+        } else {
+            if pressed {
                 clearm.send(ClearMessage);
             }
         }
     }
+    
 }
 
 fn body_change(
