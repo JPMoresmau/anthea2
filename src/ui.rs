@@ -132,7 +132,7 @@ pub fn setup_ui(
     mut queue: EventWriter<MessageEvent>,
     mut state: ResMut<State<GameState>>,
 ) {
-    println!("setting UI up...");
+    println!("Setting UI up...");
     let mut atlas = TextureAtlas::new_empty(handles.ui_handle.clone(), Vec2::new(1024.0, 666.0));
 
     for ((x1, y1), (x2, y2)) in DIMENSIONS {

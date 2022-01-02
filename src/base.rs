@@ -42,8 +42,9 @@ pub struct AntheaState {
     //player_position: Position,
     pub map_position: Position,
     pub positions: HashMap<Position, TileEntityState>,
-    pub revealed: HashSet<Position>,
+    pub revealed: HashSet<SpritePosition>,
     pub last_move: u128,
+    //pub last_hover: Option<SpritePosition>,
 }
 
 impl Default for AntheaState {
@@ -54,6 +55,7 @@ impl Default for AntheaState {
             positions: HashMap::new(),
             revealed: HashSet::new(),
             last_move: 0,
+            //last_hover: None,
         }
     }
 }

@@ -1,6 +1,6 @@
 use bevy::{asset::LoadState, prelude::*};
 
-//use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 
 pub mod base;
 use base::*;
@@ -19,9 +19,12 @@ use world::*;
 pub mod stages;
 use stages::castle::*;
 
+use std::env;
+
 fn main() {
-    App::build()
-        .init_resource::<AntheaHandles>()
+    let mut builder = App::build();
+
+    builder.init_resource::<AntheaHandles>()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .insert_resource(WindowDescriptor {
             title: "Anthea's Quest".to_string(),
@@ -33,10 +36,16 @@ fn main() {
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(AntheaPlugin)
+        .add_plugin(AntheaPlugin);
+    if let Ok(var) = env::var("BEVY_DIAGNOSTICS"){
+        if &var == "1"{
+            builder.add_plugin(LogDiagnosticsPlugin::default())
+                .add_plugin(FrameTimeDiagnosticsPlugin::default());
+        }
         //.add_plugin(LogDiagnosticsPlugin::default())
         //.add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .run();
+    }
+    builder.run();
 }
 
 pub struct AntheaPlugin;
@@ -142,14 +151,14 @@ fn player_movement_system(
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
 ) {
-    
+    state.last_move += time.delta().as_millis();
+    if state.last_move < MOVE_DELAY {
+        return;
+    }
+
     //let (mut pos,mut map) = (&mut (state.player_position),&mut state.map_position);
     for i in keyboard_input.get_pressed() {
-        state.last_move += time.delta().as_millis();
-        if state.last_move < MOVE_DELAY {
-            return;
-        }
-    
+   
         let mut new_pos = state.map_position.clone();
         match i {
             KeyCode::Right => new_pos.x -= SPRITE_SIZE,
@@ -195,7 +204,7 @@ fn player_movement_system(
                             transform.translation.y as i32,
                         ));
                         //println!("Revealing: {:?}",pos);
-                        state.revealed.insert(pos);
+                        state.revealed.insert(pos.inverse_x().into());
                     }
                 }
             }
@@ -286,7 +295,7 @@ fn start_system(
                     transform.translation.y as i32,
                 ));
                 //println!("Revealing: {:?}",pos);
-                state.revealed.insert(pos);
+                state.revealed.insert(pos.inverse_x().into());
             }
         }
         for mut vis in &mut help_query.iter_mut() {
@@ -309,47 +318,61 @@ fn click_system(
         return;
     }
     if let Some((x,y)) = location.coords {
-        //println!("left mouse currently pressed as: {} {}",x,y);
-        if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
-            && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
-        {
-            location.coords=None;
-            if pressed {
-                menu.send(MenuEvent::new(system_menu()));
-            } else {
-                queue.send(MessageEvent::new("System menu", MessageStyle::Info));
-            }
-            return;
-        }
-
         let rel_x = x - (state.map_position.x as f32);
         let rel_y = -(y - (state.map_position.y as f32));
         //println!("relative: {:?},{:?}",rel_x,rel_y);
 
-        let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
-        let mut revealed = false;
-        for rp in state.revealed.iter() {
+        //let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
+        let sprite_position=SpritePosition::from_coords(rel_x,rel_y);
+        /*if !pressed {
+            if let Some(p) = &state.last_hover {
+                if p==&sprite_position {
+                    return;
+                }
+            }
+        }
+        state.last_hover=Some(sprite_position.clone());
+        */
+        //println!("left mouse currently pressed as: {} {}",x,y);
+        if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
+            && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
+        {
+            
+            //if pressed {
+                menu.send(MenuEvent::new(system_menu()));
+                location.coords=None;
+            /*} else {
+                queue.send(MessageEvent::new("System menu", MessageStyle::Info));
+            }*/
+            return;
+        }
+
+
+
+        let revealed = state.revealed.contains(&sprite_position);
+        /*for rp in state.revealed.iter() {
             if rp.distance(&rel_pos) <= SPRITE_SIZE / 2 {
                 revealed = true;
                 break;
             }
-        }
+        }*/
 
-        let sprite_position=SpritePosition::from_coords(rel_x,rel_y);
+        
         //println!("sprite pos: {:?},{:?}",(rel_x/SPRITE_SIZE as f32).round() as i32 ,(rel_y/SPRITE_SIZE as f32).round() as i32);
 
         if revealed {
             if x.abs() <= SPRITE_SIZE as f32 / 2.0
                 && y.abs() <= SPRITE_SIZE as f32 / 2.0
             {
-                location.coords=None;
+                
                 //println!("click on center");
                 //appstate.set_next(GameState::Menu).unwrap();
-                if pressed {
+                //if pressed {
+                    location.coords=None;
                     menu.send(MenuEvent::new(main_menu()));
-                } else {
-                    queue.send(MessageEvent::new("Anthea (click for layer menu)", MessageStyle::Info));
-                }
+                /* } else {
+                    queue.send(MessageEvent::new("Anthea (click for player menu)", MessageStyle::Info));
+                }*/
                 /*queue.send(MessageEvent::new_multi(vec![
                     Message::new("Journal",MessageStyle::Interaction),
                     Message::new("Inventory",MessageStyle::Interaction),
@@ -367,9 +390,9 @@ fn click_system(
                 clearm.send(ClearMessage);
             }
         } else {
-            if pressed {
+            //if pressed {
                 clearm.send(ClearMessage);
-            }
+            //}
         }
     }
     

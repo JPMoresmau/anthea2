@@ -700,7 +700,7 @@ impl SaveState {
                     transform.translation.x as i32,
                     transform.translation.y as i32,
                 ));
-                if self.state.revealed.contains(&pos) {
+                if self.state.revealed.contains(&pos.into()) {
                     vis.is_visible = true;
                 }
             }
