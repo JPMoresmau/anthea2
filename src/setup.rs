@@ -63,15 +63,22 @@ pub fn do_setup_map(
 
     let atlas_handle = texture_atlases.add(texture_atlas);
     let texture_atlas = texture_atlases.get(atlas_handle.clone()).unwrap();
+
+    
+ 
     for (ix, l) in map.layers.iter().enumerate() {
-        let mut pos = state.map_position.clone();
+        
+        let mut pos = SpritePosition::new(0,0);
+        //let start = SpritePosition::new(state.map_position.x,state.map_position.y);
         let mut c = 0;
         for t in &l.tiles {
             if *t > 0 {
                 let path = &ts.tiles[t - 1];
                 let tile_handle = asset_server.get_handle(path.as_str());
                 let tile_index = texture_atlas.get_texture_index(&tile_handle).unwrap();
-                let vec3 = pos.to_vec3();
+                let mut rel_pos = pos.to_relative(&state.map_position);
+                rel_pos.y = -rel_pos.y;
+                let vec3 = rel_pos.to_vec3();
                 let ec=commands
                     .spawn_bundle(SpriteSheetBundle {
                         sprite: TextureAtlasSprite::new(tile_index as u32),
@@ -87,8 +94,8 @@ pub fn do_setup_map(
                     .id()
                     ;
 
-                let rel_pos = state.map_position.to_relative(&pos);
-                let e = state.positions.entry(rel_pos.clone()).or_default();
+                
+                let e = state.positions.entry(pos.clone()).or_default();
                 e.entities.push(ec);
                 let pass = is_tile_passable(path);
                 e.passable = e.passable && pass;
@@ -99,10 +106,10 @@ pub fn do_setup_map(
             c += 1;
             if c == l.width {
                 c = 0;
-                pos.x = state.map_position.x;
-                pos.y -= SPRITE_SIZE;
+                pos.x = 0;
+                pos.y += 1;
             } else {
-                pos.x += SPRITE_SIZE;
+                pos.x += 1;
             }
         }
     }
@@ -132,10 +139,9 @@ pub fn setup_items(
     for item in stage.items.values() {
         let item_handle = asset_server.get_handle(item.sprite.as_str());
         let item_index = texture_atlas.get_texture_index(&item_handle).unwrap();
-        let item_pos:Position=Position::from(&item.position);
-        let pos = Position {
-            x: state.map_position.x + item_pos.x,
-            y: state.map_position.y - item_pos.y,
+        let pos = SpritePosition {
+            x: item.position.x - state.map_position.x,
+            y: state.map_position.y - item.position.y,
         }
         .to_vec3_z(0.3);
         let vis = false; //is_visible(&pos,None);
@@ -155,11 +161,7 @@ pub fn setup_items(
 
     let item_handle = asset_server.get_handle("sprites/items/help.png");
     let item_index = texture_atlas.get_texture_index(&item_handle).unwrap();
-    let pos = Position {
-        x: -SCREEN_WIDTH / 2 + SPRITE_SIZE / 2,
-        y: SCREEN_HEIGHT / 2 - SPRITE_SIZE / 2,
-    }
-    .to_vec3_z(0.3);
+    let pos = Vec3::new((-SCREEN_WIDTH / 2 + SPRITE_SIZE / 2) as f32,(SCREEN_HEIGHT / 2 - SPRITE_SIZE / 2) as f32, 0.3);
     commands
         .spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(item_index as u32),
@@ -207,7 +209,7 @@ pub fn setup_body(
 
     let atlas_handle = texture_atlases.add(texture_atlas);
 
-    let pos = Position::default().to_vec3_z(0.3);
+    let pos = Vec3::new(0.0, 0.0, 0.3);
     commands.spawn_bundle((Player,)).with_children(|p| {
         p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(body_index as u32),
@@ -271,10 +273,9 @@ pub fn setup_people(
     for chr in stage.characters.values() {
         let chr_handle = asset_server.get_handle(chr.sprite.as_str());
         let chr_index = texture_atlas.get_texture_index(&chr_handle).unwrap();
-        let chr_pos:Position=Position::from(&chr.position);
-        let pos = Position {
-            x: state.map_position.x + chr_pos.x,
-            y: state.map_position.y - chr_pos.y,
+        let pos = SpritePosition {
+            x: chr.position.x - state.map_position.x,
+            y: state.map_position.y - chr.position.y,
         }
         .to_vec3_z(0.3);
         let vis = false; //is_visible(&pos,None);
@@ -318,17 +319,16 @@ pub fn is_visible(pos: &Vec3, ostate: Option<&AntheaState>) -> bool {
 
                 let pos = state
                     .map_position
-                    .add(&Position::from_vec3(&Vec3::new(d_x, d_y, 0.0)).inverse());
+                    .add(&SpritePosition::from_coords(d_x, -d_y));
                 if let Some(t) = state.positions.get(&pos) {
                     if !t.transparent {
                         return false;
                     }
                 }
             }
-            return true;
-        } else {
-            return true;
-        }
+        } 
+        return true;
+        
     }
     false
 }

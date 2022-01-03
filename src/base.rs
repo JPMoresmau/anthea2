@@ -15,6 +15,8 @@ pub const VISIBILITY_DISTANCE: f32 = 4.0 * SPRITE_SIZE as f32;
 
 pub const MOVE_DELAY: u128 = 200;
 
+pub const DOUBLE_CLICK_DELAY: u128 = 500;
+
 pub const STAGE: &str = "app_state";
 pub const CLOSE: &str = "Close";
 
@@ -40,8 +42,8 @@ pub struct AntheaHandles {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AntheaState {
     //player_position: Position,
-    pub map_position: Position,
-    pub positions: HashMap<Position, TileEntityState>,
+    pub map_position: SpritePosition,
+    pub positions: HashMap<SpritePosition, TileEntityState>,
     pub revealed: HashSet<SpritePosition>,
     pub last_move: u128,
     //pub last_hover: Option<SpritePosition>,
@@ -51,7 +53,7 @@ impl Default for AntheaState {
     fn default() -> Self {
         Self {
             //player_position: Position::default(),
-            map_position: Position::default(),
+            map_position: SpritePosition::default(),
             positions: HashMap::new(),
             revealed: HashSet::new(),
             last_move: 0,
@@ -78,7 +80,9 @@ pub enum GameState {
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
 pub struct MouseLocation {
-    pub coords: Option<(f32,f32)>,
+    pub coords: Option<SpritePosition>,
+    pub last_click: Option<SpritePosition>,
+    pub last_click_time: u128
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,69 +102,6 @@ impl Default for TileEntityState {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct Position {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl Position {
-    pub fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
-
-    pub fn to_vec3(&self) -> Vec3 {
-        Vec3::new(self.x as f32, self.y as f32, 0.0)
-    }
-
-    pub fn to_vec3_z(&self, z: f32) -> Vec3 {
-        Vec3::new(self.x as f32, self.y as f32, z)
-    }
-
-    pub fn from_vec3(v: &Vec3) -> Position {
-        Position {
-            x: v.x as i32,
-            y: v.y as i32,
-        }
-    }
-
-    pub fn copy(&mut self, pos: &Position) {
-        self.x = pos.x;
-        self.y = pos.y;
-    }
-
-    pub fn to_relative(&self, pos: &Position) -> Position {
-        Position {
-            x: self.x - pos.x,
-            y: self.y - pos.y,
-        }
-    }
-
-    pub fn add(&self, pos: &Position) -> Position {
-        Position {
-            x: self.x + pos.x,
-            y: self.y + pos.y,
-        }
-    }
-
-    pub fn inverse(&self) -> Position {
-        Position {
-            x: -self.x,
-            y: -self.y,
-        }
-    }
-
-    pub fn inverse_x(&self) -> Position {
-        Position {
-            x: -self.x,
-            y: self.y,
-        }
-    }
-
-    pub fn distance(&self, pos: &Position) -> i32 {
-        (self.x - pos.x).abs().max((self.y - pos.y).abs())
-    }
-}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SpritePosition {
@@ -181,18 +122,15 @@ impl SpritePosition {
     }
 
     pub fn to_vec3(&self) -> Vec3 {
-        Vec3::new(self.x as f32, self.y as f32, 0.0)
+        Self::to_vec3_z(self,0.0)
     }
 
     pub fn to_vec3_z(&self, z: f32) -> Vec3 {
-        Vec3::new(self.x as f32, self.y as f32, z)
+        Vec3::new((self.x * SPRITE_SIZE) as f32, (self.y * SPRITE_SIZE) as f32, z)
     }
 
     pub fn from_vec3(v: &Vec3) -> SpritePosition {
-        SpritePosition {
-            x: v.x as i32,
-            y: v.y as i32,
-        }
+        Self::from_coords(v.x,v.y)
     }
 
     pub fn copy(&mut self, pos: &SpritePosition) {
@@ -214,58 +152,9 @@ impl SpritePosition {
         }
     }
 
-    pub fn inverse(&self) -> SpritePosition {
-        SpritePosition {
-            x: -self.x,
-            y: -self.y,
-        }
-    }
-
-    pub fn inverse_x(&self) -> SpritePosition {
-        SpritePosition {
-            x: -self.x,
-            y: self.y,
-        }
-    }
-
-    pub fn distance(&self, pos: &SpritePosition) -> i32 {
-        (self.x - pos.x).abs().max((self.y - pos.y).abs())
-    }
 }
 
-impl From<&SpritePosition> for Position {
-    fn from(sp: &SpritePosition) -> Self {
-        sprite_position(sp.x,sp.y)
-    }
-}
 
-impl From<Position> for SpritePosition {
-    fn from(p: Position) -> Self {
-        SpritePosition::from_coords(p.x as f32,p.y as f32)
-    }
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct Dimension {
-    topleft: Position,
-    bottomright: Position,
-}
-
-impl Dimension {
-    pub fn new(topleft: Position, bottomright: Position) -> Self {
-        Self {
-            topleft,
-            bottomright,
-        }
-    }
-
-    pub fn contains(&self, pos: &Position) -> bool {
-        pos.x >= self.topleft.x
-            && pos.x <= self.bottomright.x
-            && pos.y >= self.topleft.y
-            && pos.y <= self.bottomright.y
-    }
-}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SpriteDimension {
@@ -468,22 +357,6 @@ impl Inventory {
     }
 }
 
-pub fn sprite_position(x: i32, y: i32) -> Position {
-    Position::new(x * SPRITE_SIZE, y * SPRITE_SIZE)
-}
-
-pub fn sprite_dimensions(x1: i32, y1: i32, x2: i32, y2: i32) -> Dimension {
-    Dimension::new(
-        Position::new(
-            x1 * SPRITE_SIZE - SPRITE_SIZE / 2,
-            y1 * SPRITE_SIZE - SPRITE_SIZE / 2,
-        ),
-        Position::new(
-            x2 * SPRITE_SIZE + SPRITE_SIZE / 2,
-            y2 * SPRITE_SIZE + SPRITE_SIZE / 2,
-        ),
-    )
-}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Talents {
@@ -585,12 +458,12 @@ pub struct Help;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoveTileEvent {
-    pub position: Position,
+    pub position: SpritePosition,
     pub layer: usize,
 }
 
 impl RemoveTileEvent {
-    pub fn new(position: Position, layer: usize) -> Self {
+    pub fn new(position: SpritePosition, layer: usize) -> Self {
         Self { position, layer }
     }
 }

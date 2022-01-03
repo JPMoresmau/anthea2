@@ -61,7 +61,7 @@ const QUEST_RATS: &str = "Rats";
 const RATS_GONE: &str = "rats_gone";
 
 fn castle_area() -> Area {
-    let mut stage = Area::new("Selaion Palace", 0, sprite_position(-20, 4));
+    let mut stage = Area::new("Selaion Palace", 0, SpritePosition::new(20, 4));
     let bedroom = Room::new("bedroom", "Your bedroom", 6, 3, 9, 6);
     let throne = Room::new("throne", "Selaion throne room", 11, 2, 26, 6);
     let garden =
@@ -653,9 +653,9 @@ fn character_theon(
                 ));
 
                 let gate_pos = vec![
-                    Position { x: -640, y: 928 },
-                    Position { x: -672, y: 928 },
-                    Position { x: -704, y: 928 },
+                    SpritePosition::new(-20, 29),
+                    SpritePosition::new(-21, 29),
+                    SpritePosition::new(-22, 29),
                 ];
                 for pos in gate_pos.into_iter() {
                     remove_tile.send(RemoveTileEvent::new(pos, 1));

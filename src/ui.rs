@@ -314,7 +314,7 @@ fn message_system(
                         build_table(parent, &handles, &msg.contents, data);
                         needs_close = true;
                     } else {
-                        let ts = build_section(&msg, handles.font_handle.clone(), &sep);
+                        let ts = build_section(msg, handles.font_handle.clone(), &sep);
                         if let MessageStyle::Interaction(code) = &msg.style {
                             build_interaction(parent, ts, code);
                             needs_close = true;

@@ -696,11 +696,11 @@ impl SaveState {
         )>();
         for (transform, mut vis) in sprite_query.iter_mut(world) {
             if !vis.is_visible {
-                let pos = self.state.map_position.to_relative(&Position::new(
-                    transform.translation.x as i32,
-                    transform.translation.y as i32,
+                let pos = self.state.map_position.to_relative(&SpritePosition::from_coords(
+                    transform.translation.x,
+                    transform.translation.y,
                 ));
-                if self.state.revealed.contains(&pos.into()) {
+                if self.state.revealed.contains(&pos) {
                     vis.is_visible = true;
                 }
             }

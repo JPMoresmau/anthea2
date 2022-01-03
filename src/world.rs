@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub struct Area {
     pub name: String,
     pub map_index: usize,
-    pub start: Position,
+    pub start: SpritePosition,
     pub rooms: HashMap<String, Room>,
     pub affordances: HashMap<SpritePosition, Affordance>,
     pub items: HashMap<SpritePosition, Item>,
@@ -14,7 +14,7 @@ pub struct Area {
 }
 
 impl Area {
-    pub fn new<S: Into<String>>(name: S, map_index: usize, start: Position) -> Self {
+    pub fn new<S: Into<String>>(name: S, map_index: usize, start: SpritePosition) -> Self {
         Self {
             name: name.into(),
             map_index,

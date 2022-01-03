@@ -161,10 +161,10 @@ fn player_movement_system(
    
         let mut new_pos = state.map_position.clone();
         match i {
-            KeyCode::Right => new_pos.x -= SPRITE_SIZE,
-            KeyCode::Left => new_pos.x += SPRITE_SIZE,
-            KeyCode::Up => new_pos.y -= SPRITE_SIZE,
-            KeyCode::Down => new_pos.y += SPRITE_SIZE,
+            KeyCode::Right => new_pos.x += 1,
+            KeyCode::Left => new_pos.x -= 1,
+            KeyCode::Up => new_pos.y -= 1,
+            KeyCode::Down => new_pos.y += 1,
             _ => (),
         }
         if new_pos != state.map_position {
@@ -178,33 +178,30 @@ fn player_movement_system(
         if new_pos != state.map_position {
             state.last_move = 0;
 
-            let rel_x = -(new_pos.x as f32);
-            let rel_y = new_pos.y as f32;
-
-            let sprite_position=SpritePosition::from_coords(rel_x,rel_y);
-            if let Some(a) = stage.affordance_from_position(&sprite_position) {
+            //let sprite_position=new_pos.inverse_x();
+            if let Some(a) = stage.affordance_from_position(&new_pos) {
                 // println!("Affordance: {}",a.name);
                 ev_affordance.send(AffordanceEvent(a.name.clone()));
-            } else if let Some(c) = stage.character_from_position(&sprite_position) {
+            } else if let Some(c) = stage.character_from_position(&new_pos) {
                 //println!("Character: {}",c.name);
                 ev_character.send(CharacterEvent(c.name.clone()));
             } else {
                 audio.play(asset_server.get_handle("sounds/steps.ogg"));
-                let dif_x = (new_pos.x - state.map_position.x) as f32;
-                let dif_y = (new_pos.y - state.map_position.y) as f32;
+                let dif_x = ((new_pos.x - state.map_position.x) * SPRITE_SIZE) as f32;
+                let dif_y = ((new_pos.y - state.map_position.y) * SPRITE_SIZE) as f32;
                 state.map_position = new_pos;
 
                 for (mut transform, mut vis) in &mut sprite_query.iter_mut() {
-                    transform.translation.x += dif_x;
+                    transform.translation.x -= dif_x;
                     transform.translation.y += dif_y;
                     if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
                         vis.is_visible = true;
-                        let pos = state.map_position.to_relative(&Position::new(
-                            transform.translation.x as i32,
-                            transform.translation.y as i32,
+                        let pos = state.map_position.add(&SpritePosition::from_coords(
+                            transform.translation.x,
+                            -transform.translation.y,
                         ));
                         //println!("Revealing: {:?}",pos);
-                        state.revealed.insert(pos.inverse_x().into());
+                        state.revealed.insert(pos);
                     }
                 }
             }
@@ -223,7 +220,7 @@ fn pickup_item(
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
 ) {
-    if let Some(i) = stage.items.remove(&state.map_position.inverse_x().into()) {
+    if let Some(i) = stage.items.remove(&state.map_position) {
         //println!("Item: {}",i.name);
         for (e, _i2) in item_query.iter().filter(|(_e, i2)| i.name == i2.name) {
             commands.entity(e).despawn_recursive();
@@ -265,7 +262,7 @@ fn cursor_system(
             // apply the camera transform
             let pos_wld = camera_transform.compute_matrix() * p.extend(0.0).extend(1.0);
             //println!("World coords: {}/{}", pos_wld.x, pos_wld.y);
-            location.coords=Some((pos_wld.x,pos_wld.y));
+            location.coords=Some(SpritePosition::from_coords(pos_wld.x,-pos_wld.y));
         }
     }
 }
@@ -290,12 +287,12 @@ fn start_system(
         for (transform, mut vis) in &mut sprite_query.iter_mut() {
             if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
                 vis.is_visible = true;
-                let pos = state.map_position.to_relative(&Position::new(
-                    transform.translation.x as i32,
-                    transform.translation.y as i32,
+                let pos = state.map_position.add(&SpritePosition::from_coords(
+                    transform.translation.x,
+                    -transform.translation.y,
                 ));
                 //println!("Revealing: {:?}",pos);
-                state.revealed.insert(pos.inverse_x().into());
+                state.revealed.insert(pos);
             }
         }
         for mut vis in &mut help_query.iter_mut() {
@@ -312,18 +309,29 @@ fn click_system(
     state: Res<AntheaState>,
     stage: Res<Area>,
     mut menu: EventWriter<MenuEvent>,
+    time: Res<Time>,
 ) {
     let pressed= mouse_button_input.just_pressed(MouseButton::Left);
     if !pressed {
         return;
     }
-    if let Some((x,y)) = location.coords {
-        let rel_x = x - (state.map_position.x as f32);
-        let rel_y = -(y - (state.map_position.y as f32));
+    
+    if let Some(rel_pos) = location.coords.clone() {
+        let sprite_position = state.map_position.add(&rel_pos);
         //println!("relative: {:?},{:?}",rel_x,rel_y);
+        let ms=time.time_since_startup().as_millis();
+
+        let dbl_clicked=
+            if let Some(old) = &location.last_click{
+                old == &sprite_position && ms - location.last_click_time < DOUBLE_CLICK_DELAY
+            } else {
+                false
+            };
+        location.last_click=Some(sprite_position.clone());
+        location.last_click_time=ms;
 
         //let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
-        let sprite_position=SpritePosition::from_coords(rel_x,rel_y);
+        //let sprite_position=SpritePosition::new(rel_x,rel_y);
         /*if !pressed {
             if let Some(p) = &state.last_hover {
                 if p==&sprite_position {
@@ -333,11 +341,13 @@ fn click_system(
         }
         state.last_hover=Some(sprite_position.clone());
         */
-        //println!("left mouse currently pressed as: {} {}",x,y);
-        if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
-            && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
+        //println!("left mouse currently pressed as: {:?}",sprite_position);
+        //println!("left mouse currently pressed relative: {:?}",rel_pos);
+        //if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
+        //    && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
+        if rel_pos.x<=-9
+                && rel_pos.y==-7
         {
-            
             //if pressed {
                 menu.send(MenuEvent::new(system_menu()));
                 location.coords=None;
@@ -361,8 +371,7 @@ fn click_system(
         //println!("sprite pos: {:?},{:?}",(rel_x/SPRITE_SIZE as f32).round() as i32 ,(rel_y/SPRITE_SIZE as f32).round() as i32);
 
         if revealed {
-            if x.abs() <= SPRITE_SIZE as f32 / 2.0
-                && y.abs() <= SPRITE_SIZE as f32 / 2.0
+            if sprite_position == state.map_position
             {
                 
                 //println!("click on center");
@@ -378,16 +387,28 @@ fn click_system(
                     Message::new("Inventory",MessageStyle::Interaction),
                     Message::new("Talents",MessageStyle::Interaction),
                 ]));*/
-            } else if let Some(c) = stage.character_from_position(&sprite_position) {
-                queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
-            } else if let Some(a) = stage.affordance_from_position(&sprite_position) {
-                queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
-            } else if let Some(i) = stage.item_from_position(&sprite_position)  {
-                queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
-            } else if let Some(r) = stage.room_from_position(&sprite_position) {
-                queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
             } else {
-                clearm.send(ClearMessage);
+                if let Some(c) = stage.character_from_position(&sprite_position) {
+                    queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
+                } else if let Some(a) = stage.affordance_from_position(&sprite_position) {
+                    queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
+                } else if let Some(i) = stage.item_from_position(&sprite_position)  {
+                    queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
+                } else if let Some(r) = stage.room_from_position(&sprite_position) {
+                    queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
+                } else {
+                    clearm.send(ClearMessage);
+                }
+                if dbl_clicked {
+                    println!("Double click");
+                    if let Some(tes) = state.positions.get(&sprite_position){
+                        if tes.passable {
+                            println!("State positions: {:?}",&state.positions);
+                            println!("Stage characters: {:?}",&stage.characters);
+                            println!("Should go from {:?} to {:?}",&state.map_position,sprite_position);
+                        }
+                    }
+                }
             }
         } else {
             //if pressed {
