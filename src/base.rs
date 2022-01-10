@@ -25,6 +25,8 @@ pub const QUEST_MAIN: &str = "main";
 pub const QUEST_STARTED: &str = "started";
 pub const QUEST_COMPLETED: &str = "completed";
 
+use pathfinding::prelude::absdiff;
+
 #[derive(Default)]
 pub struct AntheaHandles {
     pub people_handles: Vec<HandleUntyped>,
@@ -152,6 +154,10 @@ impl SpritePosition {
         }
     }
 
+    pub fn distance(&self, other: &SpritePosition) -> u32 {
+        (absdiff(self.x, other.x) + absdiff(self.y, other.y)) as u32
+    }
+    
 }
 
 
@@ -187,6 +193,9 @@ impl SpriteDimension {
         v
     }
 }
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+pub struct MovementPlan(pub Vec<SpritePosition>);
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct MapTile(pub usize);
@@ -473,3 +482,7 @@ pub struct EventMemory {
     pub body: Vec<BodyChangeEvent>,
     pub removed_tiles: Vec<RemoveTileEvent>,
 }
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoveEvent(pub SpritePosition);

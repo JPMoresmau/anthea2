@@ -19,7 +19,9 @@ use world::*;
 pub mod stages;
 use stages::castle::*;
 
+use std::collections::{HashMap, HashSet};
 use std::env;
+use pathfinding::prelude::astar;
 
 fn main() {
     let mut builder = App::build();
@@ -62,12 +64,14 @@ impl Plugin for AntheaPlugin {
             .insert_resource(QuestFlags::default())
             .insert_resource(Spells::default())
             .insert_resource(EventMemory::default())
+            .insert_resource(MovementPlan::default())
             .add_event::<AffordanceEvent>()
             .add_event::<CharacterEvent>()
             .add_event::<ItemEvent>()
             .add_event::<BodyChangeEvent>()
             .add_event::<JournalEvent>()
             .add_event::<RemoveTileEvent>()
+            .add_event::<MoveEvent>()
             .add_plugin(CastlePlugin)
             .add_asset::<Map>()
             .init_asset_loader::<MapAssetLoader>()
@@ -84,6 +88,8 @@ impl Plugin for AntheaPlugin {
             .add_system_set(SystemSet::on_enter(GameState::Start).with_system(setup_people.system()))
             .add_system_set(SystemSet::on_update(GameState::Start).with_system(start_system.system()))
             .add_system_set(SystemSet::on_update(GameState::Running).with_system(player_movement_system.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(automatic_movement_system.system()))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(move_system.system()))
             .add_system_set(SystemSet::on_update(GameState::Running).with_system(cursor_system.system()))
             .add_system_set(SystemSet::on_update(GameState::Running).with_system(click_system.system()))
             .add_system_set(SystemSet::on_update(GameState::Running).with_system(pickup_item.system()))
@@ -140,16 +146,8 @@ fn player_movement_system(
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
     mut state: ResMut<AntheaState>,
-    stage: ResMut<Area>,
-    mut sprite_query: Query<
-        (&mut Transform, &mut Visible),
-        Or<(With<MapTile>, With<Item>, With<Character>)>,
-    >,
-    mut msg: EventWriter<ClearMessage>,
-    mut ev_affordance: EventWriter<AffordanceEvent>,
-    mut ev_character: EventWriter<CharacterEvent>,
-    asset_server: Res<AssetServer>,
-    audio: Res<Audio>,
+    mut msg: EventWriter<MoveEvent>,
+
 ) {
     state.last_move += time.delta().as_millis();
     if state.last_move < MOVE_DELAY {
@@ -167,47 +165,83 @@ fn player_movement_system(
             KeyCode::Down => new_pos.y += 1,
             _ => (),
         }
-        if new_pos != state.map_position {
-            if let Some(tes) = state.positions.get(&new_pos) {
-                if !tes.passable {
-                    new_pos.copy(&state.map_position);
+        msg.send(MoveEvent(new_pos));
+    }
+}
+
+fn move_system( mut move_events: EventReader<MoveEvent>,
+    mut state: ResMut<AntheaState>,
+    stage: ResMut<Area>,
+    mut sprite_query: Query<
+        (&mut Transform, &mut Visible),
+        Or<(With<MapTile>, With<Item>, With<Character>)>,
+    >,
+    mut msg: EventWriter<ClearMessage>,
+    mut ev_affordance: EventWriter<AffordanceEvent>,
+    mut ev_character: EventWriter<CharacterEvent>,
+    asset_server: Res<AssetServer>,
+    audio: Res<Audio>){
+        if let Some(e) = move_events.iter().next() {
+            let mut new_pos=e.0.clone();
+            if new_pos != state.map_position {
+                if let Some(tes) = state.positions.get(&new_pos) {
+                    if !tes.passable {
+                        new_pos.copy(&state.map_position);
+                    }
                 }
+                msg.send(ClearMessage);
             }
-            msg.send(ClearMessage);
-        }
-        if new_pos != state.map_position {
-            state.last_move = 0;
+            if new_pos != state.map_position {
+                state.last_move = 0;
 
-            //let sprite_position=new_pos.inverse_x();
-            if let Some(a) = stage.affordance_from_position(&new_pos) {
-                // println!("Affordance: {}",a.name);
-                ev_affordance.send(AffordanceEvent(a.name.clone()));
-            } else if let Some(c) = stage.character_from_position(&new_pos) {
-                //println!("Character: {}",c.name);
-                ev_character.send(CharacterEvent(c.name.clone()));
-            } else {
-                audio.play(asset_server.get_handle("sounds/steps.ogg"));
-                let dif_x = ((new_pos.x - state.map_position.x) * SPRITE_SIZE) as f32;
-                let dif_y = ((new_pos.y - state.map_position.y) * SPRITE_SIZE) as f32;
-                state.map_position = new_pos;
+                //let sprite_position=new_pos.inverse_x();
+                if let Some(a) = stage.affordance_from_position(&new_pos) {
+                    // println!("Affordance: {}",a.name);
+                    ev_affordance.send(AffordanceEvent(a.name.clone()));
+                } else if let Some(c) = stage.character_from_position(&new_pos) {
+                    //println!("Character: {}",c.name);
+                    ev_character.send(CharacterEvent(c.name.clone()));
+                } else {
+                    audio.play(asset_server.get_handle("sounds/steps.ogg"));
+                    let dif_x = ((new_pos.x - state.map_position.x) * SPRITE_SIZE) as f32;
+                    let dif_y = ((new_pos.y - state.map_position.y) * SPRITE_SIZE) as f32;
+                    state.map_position = new_pos;
 
-                for (mut transform, mut vis) in &mut sprite_query.iter_mut() {
-                    transform.translation.x -= dif_x;
-                    transform.translation.y += dif_y;
-                    if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
-                        vis.is_visible = true;
-                        let pos = state.map_position.add(&SpritePosition::from_coords(
-                            transform.translation.x,
-                            -transform.translation.y,
-                        ));
-                        //println!("Revealing: {:?}",pos);
-                        state.revealed.insert(pos);
+                    for (mut transform, mut vis) in &mut sprite_query.iter_mut() {
+                        transform.translation.x -= dif_x;
+                        transform.translation.y += dif_y;
+                        if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
+                            vis.is_visible = true;
+                            let pos = state.map_position.add(&SpritePosition::from_coords(
+                                transform.translation.x,
+                                -transform.translation.y,
+                            ));
+                            //println!("Revealing: {:?}",pos);
+                            state.revealed.insert(pos);
+                        }
                     }
                 }
             }
         }
-    }
 }
+
+fn automatic_movement_system(
+    mut move_plan: ResMut<MovementPlan>,
+    mut msg: EventWriter<MoveEvent>,
+    state: Res<AntheaState>,
+) {
+    if state.last_move < MOVE_DELAY || move_plan.0.len()==0{
+        return;
+    }
+  
+
+    if let Some(new_pos) = move_plan.0.pop(){
+        msg.send(MoveEvent(new_pos));
+    }
+
+   
+}
+
 
 fn pickup_item(
     mut commands: Commands,
@@ -310,6 +344,7 @@ fn click_system(
     stage: Res<Area>,
     mut menu: EventWriter<MenuEvent>,
     time: Res<Time>,
+    mut move_plan: ResMut<MovementPlan>,
 ) {
     let pressed= mouse_button_input.just_pressed(MouseButton::Left);
     if !pressed {
@@ -400,12 +435,14 @@ fn click_system(
                     clearm.send(ClearMessage);
                 }
                 if dbl_clicked {
-                    println!("Double click");
+                    //println!("Double click");
+                    move_plan.0.clear();
                     if let Some(tes) = state.positions.get(&sprite_position){
                         if tes.passable {
-                            println!("State positions: {:?}",&state.positions);
-                            println!("Stage characters: {:?}",&stage.characters);
-                            println!("Should go from {:?} to {:?}",&state.map_position,sprite_position);
+                            //println!("State positions: {:?}",&state.positions);
+                            //println!("Stage characters: {:?}",&stage.characters);
+                            //println!("Should go from {:?} to {:?}",&state.map_position,sprite_position);
+                            move_plan.0.append(&mut path(state,&sprite_position));
                         }
                     }
                 }
@@ -417,6 +454,31 @@ fn click_system(
         }
     }
     
+}
+
+fn successors(pos: &SpritePosition, positions: &HashMap<SpritePosition, TileEntityState>,
+     revealed: &HashSet<SpritePosition>) -> Vec<(SpritePosition,u32)>{
+        vec![SpritePosition::new(pos.x-1,pos.y),SpritePosition::new(pos.x+1,pos.y),SpritePosition::new(pos.x,pos.y-1),SpritePosition::new(pos.x,pos.y+1)]
+            .into_iter()
+            .filter(|p| revealed.contains(p))
+            .filter(|p| {
+                if let Some(tes) = positions.get(p){
+                    tes.passable
+                } else {
+                    false
+                }
+            })
+            .map(|p| (p,1))
+            .collect()
+     }
+
+fn path(state: Res<AntheaState>, to: &SpritePosition) -> Vec<SpritePosition>{
+    //println!("Should go from {:?} to {:?}",&state.map_position,to);
+    let result = astar(&state.map_position, |p| successors(p,&state.positions,&state.revealed), |p| p.distance(to) / 3,
+                   |p| p == to);
+    let mut v= result.map(|t| t.0).unwrap_or_else(|| vec![]);
+    v.reverse();
+    v
 }
 
 fn body_change(
