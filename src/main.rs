@@ -1,6 +1,6 @@
-use bevy::{asset::LoadState, prelude::*};
-
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::prelude::*;
+use bevy_asset_loader::prelude::*;
 
 pub mod base;
 use base::*;
@@ -19,29 +19,32 @@ use world::*;
 pub mod stages;
 use stages::castle::*;
 
+use pathfinding::prelude::astar;
 use std::collections::{HashMap, HashSet};
 use std::env;
-use pathfinding::prelude::astar;
 
 fn main() {
-    let mut builder = App::build();
+    let mut builder = App::new();
 
-    builder.init_resource::<AntheaHandles>()
+    builder
+        .init_resource::<AntheaHandles>()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
-        .insert_resource(WindowDescriptor {
-            title: "Anthea's Quest".to_string(),
-            width: SCREEN_WIDTH as f32,
-            height: SCREEN_HEIGHT as f32,
-            vsync: true,
-            resizable: false,
-            //mode: WindowMode::Fullscreen { use_size: false },
-            ..Default::default()
-        })
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                title: "Anthea's Quest".to_string(),
+                width: SCREEN_WIDTH as f32,
+                height: SCREEN_HEIGHT as f32,
+                present_mode: bevy::window::PresentMode::AutoVsync,
+                resizable: false,
+                ..default()
+            },
+            ..default()
+        }))
         .add_plugin(AntheaPlugin);
-    if let Ok(var) = env::var("BEVY_DIAGNOSTICS"){
-        if &var == "1"{
-            builder.add_plugin(LogDiagnosticsPlugin::default())
+    if let Ok(var) = env::var("BEVY_DIAGNOSTICS") {
+        if &var == "1" {
+            builder
+                .add_plugin(LogDiagnosticsPlugin::default())
                 .add_plugin(FrameTimeDiagnosticsPlugin::default());
         }
         //.add_plugin(LogDiagnosticsPlugin::default())
@@ -53,7 +56,7 @@ fn main() {
 pub struct AntheaPlugin;
 
 impl Plugin for AntheaPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app
             .insert_resource(AntheaState::default())
             .insert_resource(MouseLocation::default())
@@ -77,68 +80,33 @@ impl Plugin for AntheaPlugin {
             .init_asset_loader::<MapAssetLoader>()
             .add_asset::<TileSet>()
             .init_asset_loader::<TileSetAssetLoader>()
+            .add_loading_state(
+                LoadingState::new(GameState::Setup)
+                    .continue_to_state(GameState::Title)
+                    .with_collection::<AntheaHandles>()
+            )
             .add_state(GameState::Setup)
-            .add_system_set(SystemSet::on_enter(GameState::Setup).with_system(load_assets.system()))
-            .add_system_set(SystemSet::on_update(GameState::Setup).with_system(check_assets.system()))
-            .add_system_set(SystemSet::on_enter(GameState::Background).with_system(setup_camera.system()))
-            .add_system_set(SystemSet::on_update(GameState::Title).with_system(setup_ui.system()))
-            .add_system_set(SystemSet::on_enter(GameState::Background).with_system(setup_map.system()))
-            .add_system_set(SystemSet::on_enter(GameState::Start).with_system(setup_items.system()))
-            .add_system_set(SystemSet::on_enter(GameState::Start).with_system(setup_body.system()))
-            .add_system_set(SystemSet::on_enter(GameState::Start).with_system(setup_people.system()))
-            .add_system_set(SystemSet::on_update(GameState::Start).with_system(start_system.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(player_movement_system.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(automatic_movement_system.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(move_system.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(cursor_system.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(click_system.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(pickup_item.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(body_change.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(journal.system()))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system( remove_tile.system()))
+            .add_system_set(SystemSet::on_update(GameState::Title)
+                .with_system(setup_camera.label("camera"))
+                .with_system(setup_ui.after("camera"))
+            )
+            .add_system_set(SystemSet::on_update(GameState::Background).with_system(setup_map))
+            .add_system_set(SystemSet::on_update(GameState::Start)
+                .with_system(setup_items)
+                .with_system(setup_body)
+                .with_system(setup_people)
+                .with_system(start_system))
+            .add_system_set(SystemSet::on_update(GameState::Running).with_system(player_movement_system)
+                .with_system(automatic_movement_system)
+                .with_system(move_system)
+                .with_system(click_system)
+                .with_system(pickup_item)
+                .with_system(body_change)
+                .with_system(journal)
+                .with_system(remove_tile))
             .add_plugin(MenuPlugin)
             .add_plugin(UIPlugin)
-            //.add_system(visibility_system.system())
             ;
-    }
-}
-
-fn load_assets(mut rpg_sprite_handles: ResMut<AntheaHandles>, asset_server: Res<AssetServer>) {
-    println!("Loading assets...");
-    rpg_sprite_handles.people_handles = asset_server.load_folder("sprites/people").unwrap();
-    rpg_sprite_handles.tile_handles = asset_server.load_folder("sprites/tiles").unwrap();
-    rpg_sprite_handles.item_handles = asset_server.load_folder("sprites/items").unwrap();
-    rpg_sprite_handles.tileset_handle = asset_server.load("anthea_tileset.tsx");
-    rpg_sprite_handles.map_handles = vec![asset_server.load("castle1.tmx")];
-    rpg_sprite_handles.ui_handle = asset_server.load("RPG_GUI_v1.png");
-    rpg_sprite_handles.paper_handle = asset_server.load("paper background.png");
-    rpg_sprite_handles.font_handle = asset_server.load("GRECOromanLubedWrestling.ttf");
-    rpg_sprite_handles.sound_handles = asset_server.load_folder("sounds").unwrap();
-}
-
-fn check_assets(
-    mut state: ResMut<State<GameState>>,
-    rpg_sprite_handles: ResMut<AntheaHandles>,
-    asset_server: Res<AssetServer>,
-) {
-    let ls = asset_server.get_group_load_state(
-        rpg_sprite_handles
-            .people_handles
-            .iter()
-            .chain(rpg_sprite_handles.tile_handles.iter())
-            .chain(rpg_sprite_handles.item_handles.iter())
-            .chain(rpg_sprite_handles.sound_handles.iter())
-            .map(|handle| handle.id)
-            .chain(rpg_sprite_handles.map_handles.iter().map(|h| h.id))
-            .chain(std::iter::once(rpg_sprite_handles.tileset_handle.id))
-            .chain(std::iter::once(rpg_sprite_handles.ui_handle.id))
-            .chain(std::iter::once(rpg_sprite_handles.paper_handle.id))
-            .chain(std::iter::once(rpg_sprite_handles.font_handle.id)),
-    );
- 
-    if let LoadState::Loaded = ls {
-        println!("Assets loaded");
-        state.set(GameState::Title).unwrap();
     }
 }
 
@@ -147,7 +115,6 @@ fn player_movement_system(
     time: Res<Time>,
     mut state: ResMut<AntheaState>,
     mut msg: EventWriter<MoveEvent>,
-
 ) {
     state.last_move += time.delta().as_millis();
     if state.last_move < MOVE_DELAY {
@@ -156,7 +123,6 @@ fn player_movement_system(
 
     //let (mut pos,mut map) = (&mut (state.player_position),&mut state.map_position);
     for i in keyboard_input.get_pressed() {
-   
         let mut new_pos = state.map_position.clone();
         match i {
             KeyCode::Right => new_pos.x += 1,
@@ -169,60 +135,62 @@ fn player_movement_system(
     }
 }
 
-fn move_system( mut move_events: EventReader<MoveEvent>,
+fn move_system(
+    mut move_events: EventReader<MoveEvent>,
     mut state: ResMut<AntheaState>,
     stage: ResMut<Area>,
     mut sprite_query: Query<
-        (&mut Transform, &mut Visible),
+        (&mut Transform, &mut Visibility),
         Or<(With<MapTile>, With<Item>, With<Character>)>,
     >,
     mut msg: EventWriter<ClearMessage>,
     mut ev_affordance: EventWriter<AffordanceEvent>,
     mut ev_character: EventWriter<CharacterEvent>,
     asset_server: Res<AssetServer>,
-    audio: Res<Audio>){
-        if let Some(e) = move_events.iter().next() {
-            let mut new_pos=e.0.clone();
-            if new_pos != state.map_position {
-                if let Some(tes) = state.positions.get(&new_pos) {
-                    if !tes.passable {
-                        new_pos.copy(&state.map_position);
-                    }
+    audio: Res<Audio>,
+) {
+    if let Some(e) = move_events.iter().next() {
+        let mut new_pos = e.0.clone();
+        if new_pos != state.map_position {
+            if let Some(tes) = state.positions.get(&new_pos) {
+                if !tes.passable {
+                    new_pos.copy(&state.map_position);
                 }
-                msg.send(ClearMessage);
             }
-            if new_pos != state.map_position {
-                state.last_move = 0;
+            msg.send(ClearMessage);
+        }
+        if new_pos != state.map_position {
+            state.last_move = 0;
 
-                //let sprite_position=new_pos.inverse_x();
-                if let Some(a) = stage.affordance_from_position(&new_pos) {
-                    // println!("Affordance: {}",a.name);
-                    ev_affordance.send(AffordanceEvent(a.name.clone()));
-                } else if let Some(c) = stage.character_from_position(&new_pos) {
-                    //println!("Character: {}",c.name);
-                    ev_character.send(CharacterEvent(c.name.clone()));
-                } else {
-                    audio.play(asset_server.get_handle("sounds/steps.ogg"));
-                    let dif_x = ((new_pos.x - state.map_position.x) * SPRITE_SIZE) as f32;
-                    let dif_y = ((new_pos.y - state.map_position.y) * SPRITE_SIZE) as f32;
-                    state.map_position = new_pos;
+            //let sprite_position=new_pos.inverse_x();
+            if let Some(a) = stage.affordance_from_position(&new_pos) {
+                // println!("Affordance: {}",a.name);
+                ev_affordance.send(AffordanceEvent(a.name.clone()));
+            } else if let Some(c) = stage.character_from_position(&new_pos) {
+                //println!("Character: {}",c.name);
+                ev_character.send(CharacterEvent(c.name.clone()));
+            } else {
+                audio.play(asset_server.get_handle("sounds/steps.ogg"));
+                let dif_x = ((new_pos.x - state.map_position.x) * SPRITE_SIZE) as f32;
+                let dif_y = ((new_pos.y - state.map_position.y) * SPRITE_SIZE) as f32;
+                state.map_position = new_pos;
 
-                    for (mut transform, mut vis) in &mut sprite_query.iter_mut() {
-                        transform.translation.x -= dif_x;
-                        transform.translation.y += dif_y;
-                        if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
-                            vis.is_visible = true;
-                            let pos = state.map_position.add(&SpritePosition::from_coords(
-                                transform.translation.x,
-                                -transform.translation.y,
-                            ));
-                            //println!("Revealing: {:?}",pos);
-                            state.revealed.insert(pos);
-                        }
+                for (mut transform, mut vis) in &mut sprite_query.iter_mut() {
+                    transform.translation.x -= dif_x;
+                    transform.translation.y += dif_y;
+                    if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
+                        vis.is_visible = true;
+                        let pos = state.map_position.add(&SpritePosition::from_coords(
+                            transform.translation.x,
+                            -transform.translation.y,
+                        ));
+                        //println!("Revealing: {:?}",pos);
+                        state.revealed.insert(pos);
                     }
                 }
             }
         }
+    }
 }
 
 fn automatic_movement_system(
@@ -230,18 +198,14 @@ fn automatic_movement_system(
     mut msg: EventWriter<MoveEvent>,
     state: Res<AntheaState>,
 ) {
-    if state.last_move < MOVE_DELAY || move_plan.0.len()==0{
+    if state.last_move < MOVE_DELAY || move_plan.0.len() == 0 {
         return;
     }
-  
 
-    if let Some(new_pos) = move_plan.0.pop(){
+    if let Some(new_pos) = move_plan.0.pop() {
         msg.send(MoveEvent(new_pos));
     }
-
-   
 }
-
 
 fn pickup_item(
     mut commands: Commands,
@@ -273,47 +237,19 @@ fn pickup_item(
     }
 }
 
-fn cursor_system(
-    // events to get cursor position
-    mut cursor_moved_events: EventReader<CursorMoved>,
-    // need to get window dimensions
-    wnds: Res<Windows>,
-    // query to get camera transform
-    q_camera: Query<&Transform, With<MainCamera>>,
-    mut location: ResMut<MouseLocation>,
-) {
-    // assuming there is exactly one main camera entity, so this is OK
-    if let Some(camera_transform) = q_camera.iter().next() {
-        for ev in cursor_moved_events.iter() {
-            // get the size of the window that the event is for
-            let wnd = wnds.get(ev.id).unwrap();
-            let size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
-
-            // the default orthographic projection is in pixels from the center;
-            // just undo the translation
-            let p = ev.position - size / 2.0;
-
-            // apply the camera transform
-            let pos_wld = camera_transform.compute_matrix() * p.extend(0.0).extend(1.0);
-            //println!("World coords: {}/{}", pos_wld.x, pos_wld.y);
-            location.coords=Some(SpritePosition::from_coords(pos_wld.x,-pos_wld.y));
-        }
-    }
-}
-
 fn start_system(
     mouse_button_input: Res<Input<MouseButton>>,
     mut clearm: EventWriter<ClearMessage>,
     mut appstate: ResMut<State<GameState>>,
     mut state: ResMut<AntheaState>,
     mut sprite_query: Query<
-        (&Transform, &mut Visible),
+        (&Transform, &mut Visibility),
         (
             Without<Help>,
             Or<(With<MapTile>, With<Item>, With<Character>)>,
         ),
     >,
-    mut help_query: Query<&mut Visible, With<Help>>,
+    mut help_query: Query<&mut Visibility, With<Help>>,
 ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
         clearm.send(ClearMessage);
@@ -337,6 +273,8 @@ fn start_system(
 
 fn click_system(
     mouse_button_input: Res<Input<MouseButton>>,
+    windows: Res<Windows>,
+    q_camera: Query<&Transform, With<MainCamera>>,
     mut location: ResMut<MouseLocation>,
     mut queue: EventWriter<MessageEvent>,
     mut clearm: EventWriter<ClearMessage>,
@@ -346,137 +284,154 @@ fn click_system(
     time: Res<Time>,
     mut move_plan: ResMut<MovementPlan>,
 ) {
-    let pressed= mouse_button_input.just_pressed(MouseButton::Left);
+    let pressed = mouse_button_input.just_pressed(MouseButton::Left);
     if !pressed {
         return;
     }
-    
-    if let Some(rel_pos) = location.coords.clone() {
-        let sprite_position = state.map_position.add(&rel_pos);
-        //println!("relative: {:?},{:?}",rel_x,rel_y);
-        let ms=time.time_since_startup().as_millis();
+    let window = windows.get_primary().unwrap();
+    //if let Some(rel_pos) = location.coords.clone() {
+    if let Some(camera_transform) = q_camera.iter().next() {
+        if let Some(w_pos) = window.cursor_position() {
+            let size = Vec2::new(window.width() as f32, window.height() as f32);
 
-        let dbl_clicked=
-            if let Some(old) = &location.last_click{
+            // the default orthographic projection is in pixels from the center;
+            // just undo the translation
+            let p = w_pos - size / 2.0;
+
+            // apply the camera transform
+            let pos_wld = camera_transform.compute_matrix() * p.extend(0.0).extend(1.0);
+            //println!("World coords: {}/{}", pos_wld.x, pos_wld.y);
+            let rel_pos = SpritePosition::from_coords(pos_wld.x, -pos_wld.y);
+
+            let sprite_position = state.map_position.add(&rel_pos);
+            //println!("relative: {:?},{:?}",rel_x,rel_y);
+            let ms = time.elapsed().as_millis();
+
+            let dbl_clicked = if let Some(old) = &location.last_click {
                 old == &sprite_position && ms - location.last_click_time < DOUBLE_CLICK_DELAY
             } else {
                 false
             };
-        location.last_click=Some(sprite_position.clone());
-        location.last_click_time=ms;
+            location.last_click = Some(sprite_position.clone());
+            location.last_click_time = ms;
 
-        //let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
-        //let sprite_position=SpritePosition::new(rel_x,rel_y);
-        /*if !pressed {
-            if let Some(p) = &state.last_hover {
-                if p==&sprite_position {
-                    return;
-                }
-            }
-        }
-        state.last_hover=Some(sprite_position.clone());
-        */
-        //println!("left mouse currently pressed as: {:?}",sprite_position);
-        //println!("left mouse currently pressed relative: {:?}",rel_pos);
-        //if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
-        //    && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
-        if rel_pos.x<=-9
-                && rel_pos.y==-7
-        {
-            //if pressed {
-                menu.send(MenuEvent::new(system_menu()));
-                location.coords=None;
-            /*} else {
-                queue.send(MessageEvent::new("System menu", MessageStyle::Info));
-            }*/
-            return;
-        }
-
-
-
-        let revealed = state.revealed.contains(&sprite_position);
-        /*for rp in state.revealed.iter() {
-            if rp.distance(&rel_pos) <= SPRITE_SIZE / 2 {
-                revealed = true;
-                break;
-            }
-        }*/
-
-        
-        //println!("sprite pos: {:?},{:?}",(rel_x/SPRITE_SIZE as f32).round() as i32 ,(rel_y/SPRITE_SIZE as f32).round() as i32);
-
-        if revealed {
-            if sprite_position == state.map_position
-            {
-                
-                //println!("click on center");
-                //appstate.set_next(GameState::Menu).unwrap();
-                //if pressed {
-                    location.coords=None;
-                    menu.send(MenuEvent::new(main_menu()));
-                /* } else {
-                    queue.send(MessageEvent::new("Anthea (click for player menu)", MessageStyle::Info));
-                }*/
-                /*queue.send(MessageEvent::new_multi(vec![
-                    Message::new("Journal",MessageStyle::Interaction),
-                    Message::new("Inventory",MessageStyle::Interaction),
-                    Message::new("Talents",MessageStyle::Interaction),
-                ]));*/
-            } else {
-                if let Some(c) = stage.character_from_position(&sprite_position) {
-                    queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
-                } else if let Some(a) = stage.affordance_from_position(&sprite_position) {
-                    queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
-                } else if let Some(i) = stage.item_from_position(&sprite_position)  {
-                    queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
-                } else if let Some(r) = stage.room_from_position(&sprite_position) {
-                    queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
-                } else {
-                    clearm.send(ClearMessage);
-                }
-                if dbl_clicked {
-                    //println!("Double click");
-                    move_plan.0.clear();
-                    if let Some(tes) = state.positions.get(&sprite_position){
-                        if tes.passable {
-                            //println!("State positions: {:?}",&state.positions);
-                            //println!("Stage characters: {:?}",&stage.characters);
-                            //println!("Should go from {:?} to {:?}",&state.map_position,sprite_position);
-                            move_plan.0.append(&mut path(state,&sprite_position));
-                        }
+            //let rel_pos = Position::new(-rel_x as i32, rel_y as i32);
+            //let sprite_position=SpritePosition::new(rel_x,rel_y);
+            /*if !pressed {
+                if let Some(p) = &state.last_hover {
+                    if p==&sprite_position {
+                        return;
                     }
                 }
             }
-        } else {
-            //if pressed {
+            state.last_hover=Some(sprite_position.clone());
+            */
+            //println!("left mouse currently pressed as: {:?}",sprite_position);
+            //println!("left mouse currently pressed relative: {:?}",rel_pos);
+            //if x < -SCREEN_WIDTH as f32 / 2.0 + SPRITE_SIZE as f32
+            //    && y > SCREEN_HEIGHT as f32 / 2.0 - SPRITE_SIZE as f32
+            if rel_pos.x <= -9 && rel_pos.y == -7 {
+                //if pressed {
+                menu.send(MenuEvent::new(system_menu()));
+                location.coords = None;
+                /*} else {
+                    queue.send(MessageEvent::new("System menu", MessageStyle::Info));
+                }*/
+                return;
+            }
+
+            let revealed = state.revealed.contains(&sprite_position);
+            /*for rp in state.revealed.iter() {
+                if rp.distance(&rel_pos) <= SPRITE_SIZE / 2 {
+                    revealed = true;
+                    break;
+                }
+            }*/
+
+            //println!("sprite pos: {:?},{:?}",(rel_x/SPRITE_SIZE as f32).round() as i32 ,(rel_y/SPRITE_SIZE as f32).round() as i32);
+
+            if revealed {
+                if sprite_position == state.map_position {
+                    //println!("click on center");
+                    //appstate.set_next(GameState::Menu).unwrap();
+                    //if pressed {
+                    location.coords = None;
+                    menu.send(MenuEvent::new(main_menu()));
+                    /* } else {
+                        queue.send(MessageEvent::new("Anthea (click for player menu)", MessageStyle::Info));
+                    }*/
+                    /*queue.send(MessageEvent::new_multi(vec![
+                        Message::new("Journal",MessageStyle::Interaction),
+                        Message::new("Inventory",MessageStyle::Interaction),
+                        Message::new("Talents",MessageStyle::Interaction),
+                    ]));*/
+                } else {
+                    if let Some(c) = stage.character_from_position(&sprite_position) {
+                        queue.send(MessageEvent::new(&c.description, MessageStyle::Info));
+                    } else if let Some(a) = stage.affordance_from_position(&sprite_position) {
+                        queue.send(MessageEvent::new(&a.description, MessageStyle::Info));
+                    } else if let Some(i) = stage.item_from_position(&sprite_position) {
+                        queue.send(MessageEvent::new(&i.description, MessageStyle::Info));
+                    } else if let Some(r) = stage.room_from_position(&sprite_position) {
+                        queue.send(MessageEvent::new(&r.description, MessageStyle::Info));
+                    } else {
+                        clearm.send(ClearMessage);
+                    }
+                    if dbl_clicked {
+                        //println!("Double click");
+                        move_plan.0.clear();
+                        if let Some(tes) = state.positions.get(&sprite_position) {
+                            if tes.passable {
+                                //println!("State positions: {:?}",&state.positions);
+                                //println!("Stage characters: {:?}",&stage.characters);
+                                //println!("Should go from {:?} to {:?}",&state.map_position,sprite_position);
+                                move_plan.0.append(&mut path(state, &sprite_position));
+                            }
+                        }
+                    }
+                }
+            } else {
+                //if pressed {
                 clearm.send(ClearMessage);
-            //}
+                //}
+            }
         }
     }
-    
 }
 
-fn successors(pos: &SpritePosition, positions: &HashMap<SpritePosition, TileEntityState>,
-     revealed: &HashSet<SpritePosition>) -> Vec<(SpritePosition,u32)>{
-        vec![SpritePosition::new(pos.x-1,pos.y),SpritePosition::new(pos.x+1,pos.y),SpritePosition::new(pos.x,pos.y-1),SpritePosition::new(pos.x,pos.y+1)]
-            .into_iter()
-            .filter(|p| revealed.contains(p))
-            .filter(|p| {
-                if let Some(tes) = positions.get(p){
-                    tes.passable
-                } else {
-                    false
-                }
-            })
-            .map(|p| (p,1))
-            .collect()
-     }
+fn successors(
+    pos: &SpritePosition,
+    positions: &HashMap<SpritePosition, TileEntityState>,
+    revealed: &HashSet<SpritePosition>,
+) -> Vec<(SpritePosition, u32)> {
+    vec![
+        SpritePosition::new(pos.x - 1, pos.y),
+        SpritePosition::new(pos.x + 1, pos.y),
+        SpritePosition::new(pos.x, pos.y - 1),
+        SpritePosition::new(pos.x, pos.y + 1),
+    ]
+    .into_iter()
+    .filter(|p| revealed.contains(p))
+    .filter(|p| {
+        if let Some(tes) = positions.get(p) {
+            tes.passable
+        } else {
+            false
+        }
+    })
+    .map(|p| (p, 1))
+    .collect()
+}
 
-fn path(state: Res<AntheaState>, to: &SpritePosition) -> Vec<SpritePosition>{
+fn path(state: Res<AntheaState>, to: &SpritePosition) -> Vec<SpritePosition> {
     //println!("Should go from {:?} to {:?}",&state.map_position,to);
-    let result = astar(&state.map_position, |p| successors(p,&state.positions,&state.revealed), |p| p.distance(to) / 3,
-                   |p| p == to);
-    let mut v= result.map(|t| t.0).unwrap_or_else(|| vec![]);
+    let result = astar(
+        &state.map_position,
+        |p| successors(p, &state.positions, &state.revealed),
+        |p| p.distance(to) / 3,
+        |p| p == to,
+    );
+    let mut v = result.map(|t| t.0).unwrap_or_else(|| vec![]);
     v.reverse();
     v
 }
@@ -494,7 +449,7 @@ fn body_change(
                 if let Some(texture_atlas) = texture_atlases.get(atlas_handle) {
                     let hair_handle = asset_server.get_handle(e.sprite.as_str());
                     if let Some(hair_index) = texture_atlas.get_texture_index(&hair_handle) {
-                        sprite.index = hair_index as u32;
+                        sprite.index = hair_index;
                         event_memory.body.push(e.clone());
                     } else {
                         eprintln!("Could not find handle for {}", e.sprite);

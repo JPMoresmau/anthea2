@@ -7,23 +7,23 @@ use bevy::prelude::*;
 pub struct CastlePlugin;
 
 impl Plugin for CastlePlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.insert_resource(castle_area())
-            .add_system(affordance_mirror.system())
-            .add_system(affordance_fountain.system())
-            .add_system(action_fountain.system())
-            .add_system(action_mirror.system())
-            .add_system(character_peleus.system())
-            .add_system(character_nerita.system())
-            .add_system(action_nerita.system())
-            .add_system(character_cretien.system())
-            .add_system(character_scopas.system())
-            .add_system(character_cherise.system())
-            .add_system(character_rats.system())
-            .add_system(action_rats.system())
-            .add_system(character_theon.system())
-            .add_system(consume_sword.system())
-            .add_system(affordance_outside.system());
+            .add_system(affordance_mirror)
+            .add_system(affordance_fountain)
+            .add_system(action_fountain)
+            .add_system(action_mirror)
+            .add_system(character_peleus)
+            .add_system(character_nerita)
+            .add_system(action_nerita)
+            .add_system(character_cretien)
+            .add_system(character_scopas)
+            .add_system(character_cherise)
+            .add_system(character_rats)
+            .add_system(action_rats)
+            .add_system(character_theon)
+            .add_system(consume_sword)
+            .add_system(affordance_outside);
     }
 }
 

@@ -2,16 +2,18 @@
 name = "anthea2"
 version = "0.1.0"
 authors = ["JP Moresmau <jp@moresmau.fr>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-bevy = { version = "0.5.0", features = [ "vorbis" ]}
-rand = "0.7.3"
-roxmltree = { version = "0.14.0", features= ["std"]}
-anyhow = "1.0.38"
+bevy = { version = "0.9.0", features = [ "vorbis" ]}
+bevy_asset_loader = "0.14.1"
+bevy_math = "0.9.0"
+rand = "0.8.5"
+roxmltree = { version = "0.16.0", features= ["std"]}
+anyhow = "1.0.66"
 thiserror = "1.0"
-strum = "0.20"
-strum_macros = "0.20"
-serde = "1.0.124"
-ron = "0.6.4"
-pathfinding = "3.0.5"
+strum = "0.24"
+strum_macros = "0.24"
+serde = "1.0.147"
+ron = "0.8.0"
+pathfinding = "3.0.14"

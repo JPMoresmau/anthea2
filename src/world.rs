@@ -1,8 +1,10 @@
 use crate::base::*;
 
+use bevy::prelude::{Resource, Component};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Resource)]
 pub struct Area {
     pub name: String,
     pub map_index: usize,
@@ -151,7 +153,7 @@ pub struct AffordanceEvent(pub String);
 #[derive(Debug, Clone)]
 pub struct ItemEvent(pub String);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Component)]
 pub struct Character {
     pub name: String,
     pub description: String,

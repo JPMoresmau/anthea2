@@ -29,7 +29,7 @@ pub const HELP: &str = "help";
 pub const SAVE: &str = "save";
 pub const LOAD: &str = "load";
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord, Resource)]
 struct Menus {
     menus: Vec<Menu>,
     pub journal_index: Option<usize>,
@@ -202,30 +202,30 @@ fn spells_menu(spells: &Spells) -> Menu {
 }
 
 impl Plugin for MenuPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_event::<MenuEvent>()
             .add_event::<MenuItemEvent>()
             .add_event::<CloseMenuEvent>()
             .insert_resource(Menus::default())
-            .add_system(menu_start.system())
-            //.on_state_enter(STAGE, GameState::Menu,show_main_menu.system())
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(click_system.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(click_nav_system.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(journal_event.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(inventory_event.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(spells_event.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(talents_event.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(help_event.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(save_event.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(load_event.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(menu_close.system()))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(close_menu.system()))
-            .add_system_set(SystemSet::on_enter(GameState::Save).with_system(save.exclusive_system()))
-            .add_system_set(SystemSet::on_enter(GameState::Clean).with_system(clean.exclusive_system()))
-            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(reset.system()))
-            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(setup_items.system()))
-            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(setup_people.system()))
-            .add_system_set(SystemSet::on_enter( GameState::Load).with_system(load.exclusive_system()));
+            .add_system(menu_start)
+            //.on_state_enter(STAGE, GameState::Menu,show_main_menu)
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(click_system))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(click_nav_system))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(journal_event))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(inventory_event))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(spells_event))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(talents_event))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(help_event))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(save_event))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(load_event))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(menu_close))
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(close_menu))
+            .add_system_set(SystemSet::on_enter(GameState::Save).with_system(save))
+            .add_system_set(SystemSet::on_enter(GameState::Clean).with_system(clean))
+            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(reset))
+            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(setup_items))
+            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(setup_people))
+            .add_system_set(SystemSet::on_enter( GameState::Load).with_system(load));
     }
 }
 
@@ -493,7 +493,7 @@ fn save(world: &mut World) {
     let mut menus = world.get_resource_mut::<Menus>().unwrap();
     menus.clear();
     let mut clearm = world
-        .get_resource_mut::<bevy::app::Events<ClearMessage>>()
+        .get_resource_mut::<bevy::ecs::event::Events<ClearMessage>>()
         .unwrap();
     clearm.send(ClearMessage);
 }
@@ -527,19 +527,19 @@ fn reset(
     commands: Commands,
     sprite_handles: Res<AntheaHandles>,
     asset_server: Res<AssetServer>,
-    stage: Res<Area>,
+    //stage: Res<Area>,
     state: ResMut<AntheaState>,
     map_assets: Res<Assets<Map>>,
     tileset_assets: Res<Assets<TileSet>>,
     texture_atlases: ResMut<Assets<TextureAtlas>>,
-    textures: ResMut<Assets<Texture>>,
+    textures: ResMut<Assets<Image>>,
     mut appstate: ResMut<State<GameState>>,
 ) {
     do_setup_map(
         commands,
         sprite_handles,
         asset_server,
-        stage,
+        //stage,
         state,
         map_assets,
         tileset_assets,
@@ -557,12 +557,12 @@ fn load(world: &mut World) {
     let mut menus = world.get_resource_mut::<Menus>().unwrap();
     menus.clear();
     let mut clearm = world
-        .get_resource_mut::<bevy::app::Events<ClearMessage>>()
+        .get_resource_mut::<bevy::ecs::event::Events<ClearMessage>>()
         .unwrap();
     clearm.send(ClearMessage);
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Resource)]
 pub struct SaveState {
     state: AntheaState,
     journal: Journal,
@@ -655,13 +655,13 @@ impl SaveState {
                 }
             }
         }
-        let mut todo2: Vec<(Entity, u32)> = vec![];
+        let mut todo2: Vec<(Entity, usize)> = vec![];
         for (entity, atlas_handle, sprite) in todo.into_iter() {
             if let Some(texture_atlas) = texture_atlases.get(&atlas_handle) {
                 let hair_handle = asset_server.get_handle(sprite.as_str());
                 if let Some(hair_index) = texture_atlas.get_texture_index(&hair_handle) {
                     //sprite.index=hair_index as u32;
-                    todo2.push((entity, hair_index as u32));
+                    todo2.push((entity, hair_index));
                 }
             }
         }
@@ -690,7 +690,7 @@ impl SaveState {
             }
         }
 
-        let mut sprite_query = world.query_filtered::<(&Transform, &mut Visible), (
+        let mut sprite_query = world.query_filtered::<(&Transform, &mut Visibility), (
             Without<Help>,
             Or<(With<MapTile>, With<Item>, With<Character>)>,
         )>();
