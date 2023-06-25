@@ -7,8 +7,9 @@ use crate::base::*;
 
 pub struct UIPlugin;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, StageLabel)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, SystemSet)]
 pub struct AfterPostUpdate;
+
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
@@ -16,19 +17,11 @@ impl Plugin for UIPlugin {
             .add_event::<ClearMessage>()
             .add_event::<MessageEvent>()
             .add_system(message_system)
-            .add_stage_after(
-                CoreStage::PostUpdate,
-                AfterPostUpdate,
-                SystemStage::parallel(),
+            .configure_set(AfterPostUpdate.in_base_set(CoreSet::PostUpdate))
+            .add_system(
+                message_decoration_system.in_set(AfterPostUpdate),
             )
-            .add_system_to_stage(
-                AfterPostUpdate,
-                message_decoration_system,
-            )
-            //.add_system_to_stage(CoreStage::PostUpdate, message_decoration_system)
-            //.add_system(message_decoration_system)
-            .add_system_to_stage(CoreStage::PreUpdate, message_clear_system)
-            //.add_system(message_clear_system)
+            .add_system(message_clear_system.in_base_set(CoreSet::PreUpdate))
         ;
     }
 }
@@ -129,7 +122,7 @@ pub fn setup_ui(
     mut handles: ResMut<AntheaHandles>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut queue: EventWriter<MessageEvent>,
-    mut state: ResMut<State<GameState>>,
+    mut state: ResMut<NextState<GameState>>,
 ) {
     println!("Setting UI up...");
     let mut atlas = TextureAtlas::new_empty(handles.ui_handle.clone(), Vec2::new(1024.0, 666.0));
@@ -150,7 +143,7 @@ pub fn setup_ui(
     commands
         .spawn(SpriteBundle {
             texture: handles.paper_handle.clone(),
-            visibility: Visibility { is_visible: false },
+            visibility: Visibility::Hidden,
             ..Default::default()
         })
         .insert(Background);
@@ -170,23 +163,21 @@ pub fn setup_ui(
         })
         .with_children(|parent| {
             parent
-                .spawn(TextBundle {
-                    style: Style {
+                .spawn(
+                    TextBundle::default().with_style(Style {
                         align_self: AlignSelf::Center,
                         max_size: Size::new(
                             Val::Px(SCREEN_WIDTH as f32 * 0.9),
                             Val::Px(SCREEN_HEIGHT as f32 * 0.5),
                         ),
                         ..Default::default()
-                    },
-                    text: Text{sections:vec![], alignment:
-                        TextAlignment {
-                            horizontal: HorizontalAlign::Center,
-                            vertical: VerticalAlign::Top,
-                        }
-                    },
-                    ..Default::default()
-                })
+                    }), /*text: Text{sections:vec![], alignment:
+                            TextAlignment {
+                                horizontal: HorizontalAlign::Center,
+                                vertical: VerticalAlign::Top,
+                            }
+                        },*/
+                )
                 .insert(MessageText);
         });
     queue.send(MessageEvent::new_multi(vec![
@@ -203,7 +194,7 @@ pub fn setup_ui(
             style: MessageStyle::Help,
         },
     ]));
-    state.set(GameState::Background).unwrap();
+    state.set(GameState::Background);
 }
 
 fn spawn_frame(
@@ -216,7 +207,7 @@ fn spawn_frame(
         .spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite::new(tile_index),
             texture_atlas: texture_atlas_handle,
-            visibility: Visibility { is_visible: false },
+            visibility: Visibility::Hidden,
             ..Default::default()
         })
         .insert(part);
@@ -272,7 +263,6 @@ fn message_system(
             commands.entity(parent.get()).with_children(|parent| {
                 let mut needs_close = false;
                 for msg in me.messages.iter() {
-                    
                     if let MessageStyle::Navigation(backward, forward) = &msg.style {
                         build_navigation(parent, &handles, (*backward, *forward));
                     } else if let MessageStyle::Table(data) = &msg.style {
@@ -304,8 +294,8 @@ fn message_system(
 
 fn build_interaction<S1: Into<String>>(parent: &mut ChildBuilder, ts: TextSection, code: S1) {
     parent
-        .spawn(TextBundle {
-            style: Style {
+        .spawn(
+            TextBundle::from_sections(vec![ts]).with_style(Style {
                 //align_self: AlignSelf::Center,
                 margin: UiRect::all(Val::Px(5.0)),
                 max_size: Size::new(
@@ -313,17 +303,15 @@ fn build_interaction<S1: Into<String>>(parent: &mut ChildBuilder, ts: TextSectio
                     Val::Px(SCREEN_HEIGHT as f32 * 0.8),
                 ),
                 ..Default::default()
-            },
-            focus_policy: bevy::ui::FocusPolicy::Block,
-            text: Text {
-                sections: vec![ts],
-                alignment: TextAlignment {
-                    horizontal: HorizontalAlign::Center,
-                    ..Default::default()
+            }), /*focus_policy: bevy::ui::FocusPolicy::Block,
+                text:
+                    alignment: TextAlignment {
+                        horizontal: HorizontalAlign::Center,
+                        ..Default::default()
+                    },
                 },
-            },
-            ..Default::default()
-        })
+                ..Default::default()*/
+        )
         .insert(Interaction::None)
         .insert(InteractionItem(code.into()));
 }
@@ -343,7 +331,7 @@ fn build_table<S1: Into<String>>(
                 justify_content: JustifyContent::SpaceBetween,
                 ..Default::default()
             },
-            visibility: Visibility { is_visible: false },
+            visibility: Visibility::Hidden,
             ..Default::default()
         })
         .insert(TableItem)
@@ -405,7 +393,7 @@ fn build_navigation(
                 justify_content: JustifyContent::SpaceBetween,
                 ..Default::default()
             },
-            visibility: Visibility { is_visible: false },
+            visibility: Visibility::Hidden,
             ..Default::default()
         })
         .with_children(|np| {
@@ -416,7 +404,8 @@ fn build_navigation(
             });
             ec.insert(Style::default())
                 .insert(CalculatedSize {
-                    size: Size::new(Val::Px(30.0), Val::Px(30.0)),
+                    size: Vec2::splat(30.0),
+                    ..CalculatedSize::default()
                 })
                 .insert(Node::default())
                 .insert(NavigationPart::Back);
@@ -430,7 +419,8 @@ fn build_navigation(
             });
             ec.insert(Style::default())
                 .insert(CalculatedSize {
-                    size: Size::new(Val::Px(30.0), Val::Px(30.0)),
+                    size: Vec2::splat(30.0),
+                    ..CalculatedSize::default()
                 })
                 .insert(Node::default())
                 .insert(NavigationPart::Forward);
@@ -491,14 +481,14 @@ fn message_decoration_system(
             let mut max_w: f32 = 0.0;
             let mut add_y = 0.0;
             for (_t, cs, _tr) in item_query.iter() {
-                max_w = max_w.max(cs.size.width.evaluate(100.0).unwrap());
-                add_y += cs.size.height.evaluate(100.0).unwrap() + 10.0;
+                max_w = max_w.max(cs.size.x);
+                add_y += cs.size.y + 10.0;
             }
             let mut horiz_w: f32 = 0.0;
             let mut max_y: f32 = 0.0;
             for (cs, _tr) in nav_query.iter() {
-                max_y = max_y.max(cs.size.height.evaluate(100.0).unwrap());
-                horiz_w += cs.size.width.evaluate(100.0).unwrap();
+                max_y = max_y.max(cs.size.x);
+                horiz_w += cs.size.y;
             }
             max_w = max_w.max(horiz_w);
             add_y += max_y;
@@ -509,8 +499,8 @@ fn message_decoration_system(
                 for e in chs.iter() {
                     if let Ok((cs, _tr)) = cs_query.get(*e) {
                         //println!("Table query: {:?}",cs);
-                        max_y = max_y.max(cs.size.height.evaluate(100.0).unwrap());
-                        horiz_w += cs.size.width.evaluate(100.0).unwrap();
+                        max_y = max_y.max(cs.size.x);
+                        horiz_w += cs.size.y;
                     }
                 }
                 max_w = max_w.max(horiz_w);
@@ -520,12 +510,12 @@ fn message_decoration_system(
 
             //println!("CalculatedSize.add_y: {:?}",add_y);
             //println!("text transform: {:?}",ttr.translation);
-            let w = max_w.max(cs.size.width.evaluate(100.0).unwrap()) + 20.0;
-            let h = cs.size.height.evaluate(100.0).unwrap() + 20.0 + add_y;
+            let w = max_w.max(cs.size.x) + 20.0;
+            let h = cs.size.y + 20.0 + add_y;
 
             let mut z = 0.5;
             for (_b, mut v, mut tr, mut _gtr) in msg_query.p0().iter_mut() {
-                v.is_visible = true;
+                *v = Visibility::Visible;
                 tr.scale.x = (w + 20.0) / 512.0;
                 tr.scale.y = (h + 20.0) / 512.0;
                 tr.translation.x = ttr.translation.x;
@@ -538,7 +528,7 @@ fn message_decoration_system(
             z = 0.6;
             //ttr.translation.z=z+1.0;
             for (fp, mut v, mut tr, mut _gtr) in msg_query.p1().iter_mut() {
-                v.is_visible = true;
+                *v = Visibility::Visible;
 
                 match fp {
                     MessageFramePart::TopLeft => {
@@ -633,10 +623,10 @@ fn clear(
     table_query: Query<Entity, With<TableItem>>,
 ) {
     for (_b, mut v) in msg_query.p0().iter_mut() {
-        v.is_visible = false;
+        *v = Visibility::Hidden;
     }
     for (_p, mut v) in msg_query.p1().iter_mut() {
-        v.is_visible = false;
+        *v = Visibility::Hidden;
     }
     for (_m, mut t, _s, _p) in text_query.iter_mut() {
         t.sections.clear()

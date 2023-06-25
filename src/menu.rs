@@ -209,23 +209,26 @@ impl Plugin for MenuPlugin {
             .insert_resource(Menus::default())
             .add_system(menu_start)
             //.on_state_enter(STAGE, GameState::Menu,show_main_menu)
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(click_system))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(click_nav_system))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(journal_event))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(inventory_event))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(spells_event))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(talents_event))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(help_event))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(save_event))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(load_event))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(menu_close))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(close_menu))
-            .add_system_set(SystemSet::on_enter(GameState::Save).with_system(save))
-            .add_system_set(SystemSet::on_enter(GameState::Clean).with_system(clean))
-            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(reset))
-            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(setup_items))
-            .add_system_set(SystemSet::on_enter(GameState::Reset).with_system(setup_people))
-            .add_system_set(SystemSet::on_enter( GameState::Load).with_system(load));
+            .add_systems(
+                (
+                    click_system,
+                    click_nav_system,
+                    journal_event,
+                    inventory_event,
+                    spells_event,
+                    talents_event,
+                    help_event,
+                    save_event,
+                    load_event,
+                    menu_close,
+                    close_menu,
+                )
+                    .in_set(OnUpdate(GameState::Menu)),
+            )
+            .add_system(save.in_schedule(OnEnter(GameState::Save)))
+            .add_system(clean.in_schedule(OnEnter(GameState::Clean)))
+            .add_systems((reset, setup_items, setup_people).in_schedule(OnEnter(GameState::Reset)))
+            .add_system(load.in_schedule(OnEnter(GameState::Load)));
     }
 }
 
@@ -282,7 +285,7 @@ fn click_system(
     item_query: Query<(&Interaction, &Text, &InteractionItem), Changed<Interaction>>,
     mut clearm: EventWriter<ClearMessage>,
     queue: EventWriter<MessageEvent>,
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
     mut menus: ResMut<Menus>,
     mut menuqueue: EventWriter<MenuItemEvent>,
 ) {
@@ -295,7 +298,7 @@ fn click_system(
                     show_menu(queue, m);
                 } else {
                     clearm.send(ClearMessage);
-                    appstate.set(GameState::Running).unwrap();
+                    appstate.set(GameState::Running);
                 }
             } else if let Some(m) = menus.menus.last() {
                 menuqueue.send(MenuItemEvent {
@@ -331,7 +334,7 @@ fn close_menu(
     keyboard_input: Res<Input<KeyCode>>,
     mut clearm: EventWriter<ClearMessage>,
     queue: EventWriter<MessageEvent>,
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
     mut menus: ResMut<Menus>,
 ) {
     //for event in keyboard_input_events.iter() {
@@ -341,7 +344,7 @@ fn close_menu(
             show_menu(queue, m);
         } else {
             clearm.send(ClearMessage);
-            appstate.set(GameState::Running).unwrap();
+            appstate.set(GameState::Running);
         }
     }
     //}
@@ -362,25 +365,25 @@ impl MenuEvent {
 pub struct CloseMenuEvent;
 
 fn menu_start(
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
     mut event_reader: EventReader<MenuEvent>,
     queue: EventWriter<MessageEvent>,
     mut menus: ResMut<Menus>,
 ) {
     if let Some(me) = event_reader.iter().next() {
-        appstate.set(GameState::Menu).unwrap();
+        appstate.set(GameState::Menu);
         menus.clear();
         push_menu(queue, menus, me.menu.clone());
     }
 }
 
 fn menu_close(
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
     mut event_reader: EventReader<CloseMenuEvent>,
     mut menus: ResMut<Menus>,
 ) {
     if let Some(_me) = event_reader.iter().next() {
-        appstate.set(GameState::Running).unwrap();
+        appstate.set(GameState::Running);
         menus.clear();
         //clearm.send(ClearMessage);
     }
@@ -468,13 +471,13 @@ fn help_event(
 
 fn save_event(
     mut event_reader: EventReader<MenuItemEvent>,
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
 ) {
     if let Some(_e) = event_reader
         .iter()
         .find(|e| e.menu == SYSTEM && e.item == SAVE)
     {
-        appstate.set(GameState::Save).unwrap();
+        appstate.set(GameState::Save);
     }
 }
 
@@ -488,8 +491,8 @@ fn save(world: &mut World) {
     )
     .unwrap();
 
-    let mut appstate = world.get_resource_mut::<State<GameState>>().unwrap();
-    appstate.set(GameState::Running).unwrap();
+    let mut appstate = world.get_resource_mut::<NextState<GameState>>().unwrap();
+    appstate.set(GameState::Running);
     let mut menus = world.get_resource_mut::<Menus>().unwrap();
     menus.clear();
     let mut clearm = world
@@ -500,13 +503,13 @@ fn save(world: &mut World) {
 
 fn load_event(
     mut event_reader: EventReader<MenuItemEvent>,
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
 ) {
     if let Some(_e) = event_reader
         .iter()
         .find(|e| e.menu == SYSTEM && e.item == LOAD)
     {
-        appstate.set(GameState::Clean).unwrap();
+        appstate.set(GameState::Clean);
     }
 }
 
@@ -519,8 +522,8 @@ fn clean(world: &mut World) {
     let ss: SaveState = from_str(&s).unwrap();
     ss.clean_world(world);
     world.insert_resource::<SaveState>(ss);
-    let mut appstate = world.get_resource_mut::<State<GameState>>().unwrap();
-    appstate.set(GameState::Reset).unwrap();
+    let mut appstate = world.get_resource_mut::<NextState<GameState>>().unwrap();
+    appstate.set(GameState::Reset);
 }
 
 fn reset(
@@ -533,7 +536,7 @@ fn reset(
     tileset_assets: Res<Assets<TileSet>>,
     texture_atlases: ResMut<Assets<TextureAtlas>>,
     textures: ResMut<Assets<Image>>,
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
 ) {
     do_setup_map(
         commands,
@@ -546,14 +549,14 @@ fn reset(
         texture_atlases,
         textures,
     );
-    appstate.set(GameState::Load).unwrap();
+    appstate.set(GameState::Load);
 }
 
 fn load(world: &mut World) {
     let ss: SaveState = world.remove_resource::<SaveState>().unwrap();
     ss.to_world(world);
-    let mut appstate = world.get_resource_mut::<State<GameState>>().unwrap();
-    appstate.set(GameState::Running).unwrap();
+    let mut appstate = world.get_resource_mut::<NextState<GameState>>().unwrap();
+    appstate.set(GameState::Running);
     let mut menus = world.get_resource_mut::<Menus>().unwrap();
     menus.clear();
     let mut clearm = world
@@ -690,18 +693,22 @@ impl SaveState {
             }
         }
 
-        let mut sprite_query = world.query_filtered::<(&Transform, &mut Visibility), (
-            Without<Help>,
-            Or<(With<MapTile>, With<Item>, With<Character>)>,
-        )>();
-        for (transform, mut vis) in sprite_query.iter_mut(world) {
-            if !vis.is_visible {
-                let pos = self.state.map_position.to_relative(&SpritePosition::from_coords(
-                    transform.translation.x,
-                    transform.translation.y,
-                ));
+        let mut sprite_query = world
+            .query_filtered::<(&Transform, &mut Visibility, &ComputedVisibility), (
+                Without<Help>,
+                Or<(With<MapTile>, With<Item>, With<Character>)>,
+            )>();
+        for (transform, mut vis, cvis) in sprite_query.iter_mut(world) {
+            if !cvis.is_visible() {
+                let pos = self
+                    .state
+                    .map_position
+                    .to_relative(&SpritePosition::from_coords(
+                        transform.translation.x,
+                        transform.translation.y,
+                    ));
                 if self.state.revealed.contains(&pos) {
-                    vis.is_visible = true;
+                    *vis = Visibility::Visible;
                 }
             }
         }

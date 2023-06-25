@@ -624,7 +624,7 @@ fn action_rats(
             for (e, _i2) in character_query.iter().filter(|(_e, c)| c.name == RATS) {
                 commands.entity(e).despawn_recursive();
             }
-            area.characters.retain(|_, v| v.name==RATS);
+            area.characters.retain(|_, v| v.name == RATS);
         }
     }
 }
@@ -680,7 +680,7 @@ fn affordance_outside(
     flags: Res<QuestFlags>,
     mut event_reader: EventReader<AffordanceEvent>,
     mut queue: EventWriter<MessageEvent>,
-    mut state: ResMut<State<GameState>>,
+    mut state: ResMut<NextState<GameState>>,
 ) {
     for _e in event_reader.iter().filter(|e| e.0.starts_with(OUTSIDE)) {
         if !flags.has_flag(QUEST_MAIN, OBTAINED_FOOD) {
@@ -704,7 +704,7 @@ fn affordance_outside(
                     style: MessageStyle::Info,
                 },
             ]));
-            state.set(GameState::End).unwrap();
+            state.set(GameState::End);
         }
     }
 }

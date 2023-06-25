@@ -5,15 +5,15 @@ authors = ["JP Moresmau <jp@moresmau.fr>"]
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.9.0", features = [ "vorbis" ]}
-bevy_asset_loader = "0.14.1"
-bevy_math = "0.9.0"
+bevy = { version = "0.10.1", features = [ "vorbis" ]}
+bevy_asset_loader = "0.16.1"
+bevy_math = "0.10.1"
 rand = "0.8.5"
-roxmltree = { version = "0.16.0", features= ["std"]}
+roxmltree = { version = "0.18.0", features= ["std"]}
 anyhow = "1.0.66"
 thiserror = "1.0"
 strum = "0.24"
 strum_macros = "0.24"
 serde = "1.0.147"
 ron = "0.8.0"
-pathfinding = "3.0.14"
+pathfinding = "4.3.0"

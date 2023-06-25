@@ -17,7 +17,7 @@ pub fn setup_map(
     tileset_assets: Res<Assets<TileSet>>,
     texture_atlases: ResMut<Assets<TextureAtlas>>,
     textures: ResMut<Assets<Image>>,
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
 ) {
     state.map_position = stage.start.clone();
     do_setup_map(
@@ -31,7 +31,7 @@ pub fn setup_map(
         texture_atlases,
         textures,
     );
-    appstate.set(GameState::Start).unwrap();
+    appstate.set(GameState::Start);
 }
 
 pub fn do_setup_map(
@@ -76,7 +76,7 @@ pub fn do_setup_map(
                         sprite: TextureAtlasSprite::new(tile_index),
                         texture_atlas: atlas_handle.clone(),
                         transform: Transform::from_translation(vec3),
-                        visibility: Visibility { is_visible: false },
+                        visibility: Visibility::Hidden,
                         ..Default::default()
                     })
                     .insert(MapTile(ix))
@@ -137,7 +137,11 @@ pub fn setup_items(
                 sprite: TextureAtlasSprite::new(item_index),
                 texture_atlas: atlas_handle.clone(),
                 transform: Transform::from_translation(pos),
-                visibility: Visibility { is_visible: vis },
+                visibility: if vis {
+                    Visibility::Visible
+                } else {
+                    Visibility::Hidden
+                },
                 ..Default::default()
             })
             .insert(item.clone());
@@ -155,7 +159,7 @@ pub fn setup_items(
             sprite: TextureAtlasSprite::new(item_index),
             texture_atlas: atlas_handle,
             transform: Transform::from_translation(pos),
-            visibility: Visibility { is_visible: false },
+            visibility: Visibility::Hidden,
             ..Default::default()
         })
         .insert(Help);
@@ -197,7 +201,7 @@ pub fn setup_body(
     let pos = Vec3::new(0.0, 0.0, 0.3);
     commands
         .spawn((Player, SpatialBundle::default()))
-        .add_children(|p| {
+        .with_children(|p| {
             p.spawn(SpriteSheetBundle {
                 sprite: TextureAtlasSprite::new(body_index),
                 texture_atlas: atlas_handle.clone(),
@@ -205,7 +209,7 @@ pub fn setup_body(
                 ..Default::default()
             })
             .insert(PlayerPart::Body);
-            let pos2 =  Vec3::new(0.0, 0.0, 0.4);
+            let pos2 = Vec3::new(0.0, 0.0, 0.4);
             p.spawn(SpriteSheetBundle {
                 sprite: TextureAtlasSprite::new(pants_index),
                 texture_atlas: atlas_handle.clone(),
@@ -272,7 +276,11 @@ pub fn setup_people(
                 sprite: TextureAtlasSprite::new(chr_index),
                 texture_atlas: atlas_handle.clone(),
                 transform: Transform::from_translation(pos),
-                visibility: Visibility { is_visible: vis },
+                visibility: if vis {
+                    Visibility::Visible
+                } else {
+                    Visibility::Hidden
+                },
                 ..Default::default()
             })
             .insert(chr.clone());

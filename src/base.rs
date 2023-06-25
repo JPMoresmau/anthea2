@@ -33,7 +33,7 @@ pub struct AntheaHandles {
     #[asset(path = "sprites/tiles", collection)]
     pub tile_handles: Vec<HandleUntyped>,
     #[asset(path = "sprites/items", collection)]
-    pub item_handles:Vec<HandleUntyped>,
+    pub item_handles: Vec<HandleUntyped>,
     #[asset(path = "anthea_tileset.tsx")]
     pub tileset_handle: Handle<TileSet>,
     #[asset(path = "castle1.tmx")]
@@ -72,8 +72,9 @@ impl Default for AntheaState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, EnumIter,Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, EnumIter, Hash, States, Default)]
 pub enum GameState {
+    #[default]
     Setup,
     Title,
     Background,
@@ -92,7 +93,7 @@ pub enum GameState {
 pub struct MouseLocation {
     pub coords: Option<SpritePosition>,
     pub last_click: Option<SpritePosition>,
-    pub last_click_time: u128
+    pub last_click_time: u128,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,7 +113,6 @@ impl Default for TileEntityState {
     }
 }
 
-
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SpritePosition {
     pub x: i32,
@@ -125,22 +125,26 @@ impl SpritePosition {
     }
 
     pub fn from_coords(x: f32, y: f32) -> Self {
-        Self { 
-            x: (x/SPRITE_SIZE as f32).round() as i32,
-            y: (y/SPRITE_SIZE as f32).round() as i32, 
-         }
+        Self {
+            x: (x / SPRITE_SIZE as f32).round() as i32,
+            y: (y / SPRITE_SIZE as f32).round() as i32,
+        }
     }
 
     pub fn to_vec3(&self) -> Vec3 {
-        Self::to_vec3_z(self,0.0)
+        Self::to_vec3_z(self, 0.0)
     }
 
     pub fn to_vec3_z(&self, z: f32) -> Vec3 {
-        Vec3::new((self.x * SPRITE_SIZE) as f32, (self.y * SPRITE_SIZE) as f32, z)
+        Vec3::new(
+            (self.x * SPRITE_SIZE) as f32,
+            (self.y * SPRITE_SIZE) as f32,
+            z,
+        )
     }
 
     pub fn from_vec3(v: &Vec3) -> SpritePosition {
-        Self::from_coords(v.x,v.y)
+        Self::from_coords(v.x, v.y)
     }
 
     pub fn copy(&mut self, pos: &SpritePosition) {
@@ -165,10 +169,7 @@ impl SpritePosition {
     pub fn distance(&self, other: &SpritePosition) -> u32 {
         (self.x.abs_diff(other.x) + self.y.abs_diff(other.y)) as u32
     }
-    
 }
-
-
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SpriteDimension {
@@ -192,23 +193,29 @@ impl SpriteDimension {
     }
 
     pub fn positions(&self) -> Vec<SpritePosition> {
-        let mut v= vec![];
-        for x in self.topleft.x ..= self.bottomright.x {
-            for y in self.topleft.y ..= self.bottomright.y {
-                v.push(SpritePosition::new(x,y));
+        let mut v = vec![];
+        for x in self.topleft.x..=self.bottomright.x {
+            for y in self.topleft.y..=self.bottomright.y {
+                v.push(SpritePosition::new(x, y));
             }
         }
         v
     }
 }
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Resource)]
+#[derive(
+    Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Resource,
+)]
 pub struct MovementPlan(pub Vec<SpritePosition>);
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Component)]
+#[derive(
+    Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Component,
+)]
 pub struct MapTile(pub usize);
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, EnumIter, Serialize, Deserialize, Component)]
+#[derive(
+    Debug, Clone, Eq, PartialEq, Ord, PartialOrd, EnumIter, Serialize, Deserialize, Component,
+)]
 pub enum PlayerPart {
     Body,
     Pants,
@@ -217,10 +224,14 @@ pub enum PlayerPart {
     RightHand,
 }
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Component)]
+#[derive(
+    Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Component,
+)]
 pub struct Player;
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Component)]
+#[derive(
+    Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Component,
+)]
 pub struct MainCamera;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Resource)]
@@ -374,7 +385,6 @@ impl Inventory {
     }
 }
 
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Resource)]
 pub struct Talents {
     pub animals: u32,
@@ -490,7 +500,6 @@ pub struct EventMemory {
     pub body: Vec<BodyChangeEvent>,
     pub removed_tiles: Vec<RemoveTileEvent>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveEvent(pub SpritePosition);

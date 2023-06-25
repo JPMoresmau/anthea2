@@ -1,5 +1,6 @@
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 use bevy_asset_loader::prelude::*;
 
 pub mod base;
@@ -30,14 +31,13 @@ fn main() {
         .init_resource::<AntheaHandles>()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: "Anthea's Quest".to_string(),
-                width: SCREEN_WIDTH as f32,
-                height: SCREEN_HEIGHT as f32,
+                resolution: (SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32).into(),
                 present_mode: bevy::window::PresentMode::AutoVsync,
                 resizable: false,
                 ..default()
-            },
+            }),
             ..default()
         }))
         .add_plugin(AntheaPlugin);
@@ -57,10 +57,8 @@ pub struct AntheaPlugin;
 
 impl Plugin for AntheaPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .insert_resource(AntheaState::default())
+        app.insert_resource(AntheaState::default())
             .insert_resource(MouseLocation::default())
-            .insert_resource(State::new(GameState::Setup))
             .insert_resource(Journal::default())
             .insert_resource(Inventory::default())
             .insert_resource(Talents::default())
@@ -80,33 +78,36 @@ impl Plugin for AntheaPlugin {
             .init_asset_loader::<MapAssetLoader>()
             .add_asset::<TileSet>()
             .init_asset_loader::<TileSetAssetLoader>()
+            .add_state::<GameState>()
             .add_loading_state(
-                LoadingState::new(GameState::Setup)
-                    .continue_to_state(GameState::Title)
-                    .with_collection::<AntheaHandles>()
+                LoadingState::new(GameState::Setup).continue_to_state(GameState::Title),
             )
-            .add_state(GameState::Setup)
-            .add_system_set(SystemSet::on_update(GameState::Title)
-                .with_system(setup_camera.label("camera"))
-                .with_system(setup_ui.after("camera"))
+            .add_collection_to_loading_state::<_, AntheaHandles>(GameState::Setup)
+            .add_systems(
+                (setup_camera, setup_ui)
+                    .chain()
+                    .in_set(OnUpdate(GameState::Title)),
             )
-            .add_system_set(SystemSet::on_update(GameState::Background).with_system(setup_map))
-            .add_system_set(SystemSet::on_update(GameState::Start)
-                .with_system(setup_items)
-                .with_system(setup_body)
-                .with_system(setup_people)
-                .with_system(start_system))
-            .add_system_set(SystemSet::on_update(GameState::Running).with_system(player_movement_system)
-                .with_system(automatic_movement_system)
-                .with_system(move_system)
-                .with_system(click_system)
-                .with_system(pickup_item)
-                .with_system(body_change)
-                .with_system(journal)
-                .with_system(remove_tile))
+            .add_system(setup_map.in_set(OnUpdate(GameState::Background)))
+            .add_systems(
+                (setup_items, setup_body, setup_people, start_system).chain()
+                    .in_set(OnUpdate(GameState::Start)),
+            )
+            .add_systems(
+                (
+                    player_movement_system,
+                    automatic_movement_system,
+                    move_system,
+                    click_system,
+                    pickup_item,
+                    body_change,
+                    journal,
+                    remove_tile,
+                )
+                    .in_set(OnUpdate(GameState::Running)),
+            )
             .add_plugin(MenuPlugin)
-            .add_plugin(UIPlugin)
-            ;
+            .add_plugin(UIPlugin);
     }
 }
 
@@ -140,7 +141,7 @@ fn move_system(
     mut state: ResMut<AntheaState>,
     stage: ResMut<Area>,
     mut sprite_query: Query<
-        (&mut Transform, &mut Visibility),
+        (&mut Transform, &mut Visibility, &ComputedVisibility),
         Or<(With<MapTile>, With<Item>, With<Character>)>,
     >,
     mut msg: EventWriter<ClearMessage>,
@@ -175,11 +176,11 @@ fn move_system(
                 let dif_y = ((new_pos.y - state.map_position.y) * SPRITE_SIZE) as f32;
                 state.map_position = new_pos;
 
-                for (mut transform, mut vis) in &mut sprite_query.iter_mut() {
+                for (mut transform, mut vis, cvis) in &mut sprite_query.iter_mut() {
                     transform.translation.x -= dif_x;
                     transform.translation.y += dif_y;
-                    if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
-                        vis.is_visible = true;
+                    if !cvis.is_visible() && is_visible(&transform.translation, Some(&state)) {
+                        *vis = Visibility::Visible;
                         let pos = state.map_position.add(&SpritePosition::from_coords(
                             transform.translation.x,
                             -transform.translation.y,
@@ -240,10 +241,10 @@ fn pickup_item(
 fn start_system(
     mouse_button_input: Res<Input<MouseButton>>,
     mut clearm: EventWriter<ClearMessage>,
-    mut appstate: ResMut<State<GameState>>,
+    mut appstate: ResMut<NextState<GameState>>,
     mut state: ResMut<AntheaState>,
     mut sprite_query: Query<
-        (&Transform, &mut Visibility),
+        (&Transform, &mut Visibility, &ComputedVisibility),
         (
             Without<Help>,
             Or<(With<MapTile>, With<Item>, With<Character>)>,
@@ -253,10 +254,10 @@ fn start_system(
 ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
         clearm.send(ClearMessage);
-        appstate.set(GameState::Running).unwrap();
-        for (transform, mut vis) in &mut sprite_query.iter_mut() {
-            if !vis.is_visible && is_visible(&transform.translation, Some(&state)) {
-                vis.is_visible = true;
+        appstate.set(GameState::Running);
+        for (transform, mut vis, cvis) in &mut sprite_query.iter_mut() {
+            if !cvis.is_visible() && is_visible(&transform.translation, Some(&state)) {
+                *vis = Visibility::Visible;
                 let pos = state.map_position.add(&SpritePosition::from_coords(
                     transform.translation.x,
                     -transform.translation.y,
@@ -266,14 +267,14 @@ fn start_system(
             }
         }
         for mut vis in &mut help_query.iter_mut() {
-            vis.is_visible = true;
+            *vis = Visibility::Visible;
         }
     }
 }
 
 fn click_system(
     mouse_button_input: Res<Input<MouseButton>>,
-    windows: Res<Windows>,
+    window: Query<&Window, With<PrimaryWindow>>,
     q_camera: Query<&Transform, With<MainCamera>>,
     mut location: ResMut<MouseLocation>,
     mut queue: EventWriter<MessageEvent>,
@@ -288,7 +289,7 @@ fn click_system(
     if !pressed {
         return;
     }
-    let window = windows.get_primary().unwrap();
+    let window = window.get_single().unwrap();
     //if let Some(rel_pos) = location.coords.clone() {
     if let Some(camera_transform) = q_camera.iter().next() {
         if let Some(w_pos) = window.cursor_position() {
