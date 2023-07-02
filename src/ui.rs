@@ -8,21 +8,20 @@ use crate::base::*;
 pub struct UIPlugin;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, SystemSet)]
+#[system_set(base)]
 pub struct AfterPostUpdate;
-
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_event::<ClearMessage>()
+        app.add_event::<ClearMessage>()
             .add_event::<MessageEvent>()
-            .add_system(message_system)
-            .configure_set(AfterPostUpdate.in_base_set(CoreSet::PostUpdate))
-            .add_system(
-                message_decoration_system.in_set(AfterPostUpdate),
-            )
-            .add_system(message_clear_system.in_base_set(CoreSet::PreUpdate))
-        ;
+            .add_system(setup_ui.in_schedule(OnEnter(GameState::Title)))
+            .add_systems((message_clear_system,message_system).chain())
+            .configure_set(AfterPostUpdate.after(CoreSet::Update))
+            .add_system(message_decoration_system.in_base_set(AfterPostUpdate))
+            //.add_system(message_clear_system.in_base_set(CoreSet::PreUpdate));
+            //.add_system(message_clear_system.before(message_system));
+            ;
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -34,6 +33,7 @@ pub enum MessageStyle {
     Navigation(bool, bool),
     Table(Vec<String>),
     Help,
+    Clear,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -124,7 +124,6 @@ pub fn setup_ui(
     mut queue: EventWriter<MessageEvent>,
     mut state: ResMut<NextState<GameState>>,
 ) {
-    println!("Setting UI up...");
     let mut atlas = TextureAtlas::new_empty(handles.ui_handle.clone(), Vec2::new(1024.0, 666.0));
 
     for ((x1, y1), (x2, y2)) in DIMENSIONS {
@@ -244,6 +243,7 @@ fn message_system(
     table_query: Query<Entity, With<TableItem>>,
 ) {
     if let Some(me) = event_reader.iter().next() {
+        //println!("message: {:?}", me.messages);
         clear(
             &mut commands,
             msg_query,
@@ -259,7 +259,7 @@ fn message_system(
             style.align_self = Default::default();
             let mut sep = String::new();
             text.sections.clear();
-
+            
             commands.entity(parent.get()).with_children(|parent| {
                 let mut needs_close = false;
                 for msg in me.messages.iter() {

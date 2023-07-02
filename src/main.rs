@@ -83,16 +83,14 @@ impl Plugin for AntheaPlugin {
                 LoadingState::new(GameState::Setup).continue_to_state(GameState::Title),
             )
             .add_collection_to_loading_state::<_, AntheaHandles>(GameState::Setup)
+            .add_system(setup_camera.in_schedule(OnEnter(GameState::Title)))
+            .add_system(setup_map.in_schedule(OnEnter(GameState::Background)))
             .add_systems(
-                (setup_camera, setup_ui)
+                (setup_items, setup_body, setup_people)
                     .chain()
-                    .in_set(OnUpdate(GameState::Title)),
+                    .in_schedule(OnEnter(GameState::Start)),
             )
-            .add_system(setup_map.in_set(OnUpdate(GameState::Background)))
-            .add_systems(
-                (setup_items, setup_body, setup_people, start_system).chain()
-                    .in_set(OnUpdate(GameState::Start)),
-            )
+            .add_system(start_system.in_set(OnUpdate(GameState::Start)))
             .add_systems(
                 (
                     player_movement_system,
@@ -158,7 +156,6 @@ fn move_system(
                     new_pos.copy(&state.map_position);
                 }
             }
-            msg.send(ClearMessage);
         }
         if new_pos != state.map_position {
             state.last_move = 0;
@@ -171,6 +168,7 @@ fn move_system(
                 //println!("Character: {}",c.name);
                 ev_character.send(CharacterEvent(c.name.clone()));
             } else {
+                msg.send(ClearMessage);
                 audio.play(asset_server.get_handle("sounds/steps.ogg"));
                 let dif_x = ((new_pos.x - state.map_position.x) * SPRITE_SIZE) as f32;
                 let dif_y = ((new_pos.y - state.map_position.y) * SPRITE_SIZE) as f32;
@@ -199,7 +197,7 @@ fn automatic_movement_system(
     mut msg: EventWriter<MoveEvent>,
     state: Res<AntheaState>,
 ) {
-    if state.last_move < MOVE_DELAY || move_plan.0.len() == 0 {
+    if state.last_move < MOVE_DELAY {
         return;
     }
 
@@ -293,7 +291,7 @@ fn click_system(
     //if let Some(rel_pos) = location.coords.clone() {
     if let Some(camera_transform) = q_camera.iter().next() {
         if let Some(w_pos) = window.cursor_position() {
-            let size = Vec2::new(window.width() as f32, window.height() as f32);
+            let size = Vec2::new(window.width(), window.height());
 
             // the default orthographic projection is in pixels from the center;
             // just undo the translation
@@ -432,7 +430,7 @@ fn path(state: Res<AntheaState>, to: &SpritePosition) -> Vec<SpritePosition> {
         |p| p.distance(to) / 3,
         |p| p == to,
     );
-    let mut v = result.map(|t| t.0).unwrap_or_else(|| vec![]);
+    let mut v = result.map(|t| t.0).unwrap_or_else(Vec::new);
     v.reverse();
     v
 }

@@ -485,7 +485,7 @@ fn save(world: &mut World) {
     let ss = SaveState::from_world(world);
     let save_string = to_string(&ss).unwrap();
     write!(
-        File::create(&Path::new("save.ron")).unwrap(),
+        File::create(Path::new("save.ron")).unwrap(),
         "{}",
         save_string
     )
@@ -515,7 +515,7 @@ fn load_event(
 
 fn clean(world: &mut World) {
     let mut s = String::new();
-    File::open(&Path::new("save.ron"))
+    File::open(Path::new("save.ron"))
         .unwrap()
         .read_to_string(&mut s)
         .unwrap();
@@ -580,18 +580,17 @@ pub struct SaveState {
 
 impl SaveState {
     pub fn from_world(world: &World) -> SaveState {
-        let mut ss = SaveState::default();
-        ss.state = world.get_resource::<AntheaState>().unwrap().clone();
-        ss.journal = world.get_resource::<Journal>().unwrap().clone();
-        ss.inventory = world.get_resource::<Inventory>().unwrap().clone();
-        ss.talents = world.get_resource::<Talents>().unwrap().clone();
-        ss.flags = world.get_resource::<QuestFlags>().unwrap().clone();
-        ss.spells = world.get_resource::<Spells>().unwrap().clone();
-        ss.event_memory = world.get_resource::<EventMemory>().unwrap().clone();
-        ss.area_affordances = world.get_resource::<Area>().unwrap().affordances.clone();
-        ss.area_items = world.get_resource::<Area>().unwrap().items.clone();
-
-        ss
+        SaveState {
+            state: world.get_resource::<AntheaState>().unwrap().clone(),
+            journal: world.get_resource::<Journal>().unwrap().clone(),
+            inventory: world.get_resource::<Inventory>().unwrap().clone(),
+            talents: world.get_resource::<Talents>().unwrap().clone(),
+            flags: world.get_resource::<QuestFlags>().unwrap().clone(),
+            spells: world.get_resource::<Spells>().unwrap().clone(),
+            event_memory: world.get_resource::<EventMemory>().unwrap().clone(),
+            area_affordances: world.get_resource::<Area>().unwrap().affordances.clone(),
+            area_items: world.get_resource::<Area>().unwrap().items.clone(),
+        }
     }
 
     pub fn clean_world(&self, world: &mut World) {

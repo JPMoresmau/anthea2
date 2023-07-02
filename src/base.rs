@@ -49,7 +49,7 @@ pub struct AntheaHandles {
     pub sound_handles: Vec<HandleUntyped>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Resource)]
+#[derive(Debug, Clone, Serialize, Deserialize, Resource, Default)]
 pub struct AntheaState {
     //player_position: Position,
     pub map_position: SpritePosition,
@@ -57,19 +57,6 @@ pub struct AntheaState {
     pub revealed: HashSet<SpritePosition>,
     pub last_move: u128,
     //pub last_hover: Option<SpritePosition>,
-}
-
-impl Default for AntheaState {
-    fn default() -> Self {
-        Self {
-            //player_position: Position::default(),
-            map_position: SpritePosition::default(),
-            positions: HashMap::new(),
-            revealed: HashSet::new(),
-            last_move: 0,
-            //last_hover: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, EnumIter, Hash, States, Default)]
@@ -167,7 +154,7 @@ impl SpritePosition {
     }
 
     pub fn distance(&self, other: &SpritePosition) -> u32 {
-        (self.x.abs_diff(other.x) + self.y.abs_diff(other.y)) as u32
+        self.x.abs_diff(other.x) + self.y.abs_diff(other.y)
     }
 }
 

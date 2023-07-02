@@ -288,7 +288,7 @@ pub fn setup_people(
 }
 
 pub fn is_visible(pos: &Vec3, ostate: Option<&AntheaState>) -> bool {
-    if pos.x.abs() < VISIBILITY_DISTANCE && pos.y.abs() < VISIBILITY_DISTANCE as f32 {
+    if pos.x.abs() < VISIBILITY_DISTANCE && pos.y.abs() < VISIBILITY_DISTANCE {
         if let Some(state) = ostate {
             let mut d_x = pos.x;
             let mut d_y = pos.y;

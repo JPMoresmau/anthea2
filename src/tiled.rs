@@ -23,7 +23,7 @@ pub enum TiledError {
     NoImageSource,
 }
 
-#[derive(Debug, TypeUuid, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, TypeUuid, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[uuid = "e6a01dcf-5e85-4d29-9d51-44763edcc642"]
 pub struct Map {
     pub width: usize,
@@ -31,40 +31,35 @@ pub struct Map {
     pub layers: Vec<Layer>,
 }
 
-impl Default for Map {
-    fn default() -> Self {
-        Self {
-            width: 0,
-            height: 0,
-            layers: vec![],
-        }
-    }
-}
-
 impl Map {
     fn load(data: &[u8]) -> Result<Map, anyhow::Error> {
         let doc = Document::parse(std::str::from_utf8(data)?)?;
-        let mut map = Map::default();
         let e = doc.root().first_element_child().unwrap();
-        map.width = e
-            .attribute("width")
-            .ok_or(TiledError::NoMapWidth)?
-            .parse()?;
-        map.height = e
-            .attribute("height")
-            .ok_or(TiledError::NoMapHeight)?
-            .parse()?;
+        let mut map = Map {
+            width: e
+                .attribute("width")
+                .ok_or(TiledError::NoMapWidth)?
+                .parse()?,
+            height: e
+                .attribute("height")
+                .ok_or(TiledError::NoMapHeight)?
+                .parse()?,
+            ..Map::default()
+        };
+
         for d in e.children() {
             if d.tag_name().name() == "layer" {
-                let mut layer = Layer::default();
-                layer.width = d
-                    .attribute("width")
-                    .ok_or(TiledError::NoLayerWidth)?
-                    .parse()?;
-                layer.height = d
-                    .attribute("height")
-                    .ok_or(TiledError::NoLayerHeight)?
-                    .parse()?;
+                let mut layer = Layer {
+                    width: d
+                        .attribute("width")
+                        .ok_or(TiledError::NoLayerWidth)?
+                        .parse()?,
+                    height: d
+                        .attribute("height")
+                        .ok_or(TiledError::NoLayerHeight)?
+                        .parse()?,
+                    ..Layer::default()
+                };
                 let data = d
                     .first_element_child()
                     .ok_or(TiledError::NoLayerData)?
@@ -106,33 +101,17 @@ impl AssetLoader for MapAssetLoader {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Layer {
     pub width: usize,
     pub height: usize,
     pub tiles: Vec<usize>,
 }
 
-impl Default for Layer {
-    fn default() -> Self {
-        Self {
-            width: 0,
-            height: 0,
-            tiles: vec![],
-        }
-    }
-}
-
-#[derive(Debug, TypeUuid, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, TypeUuid, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[uuid = "9c5da9ce-05d1-424d-931e-acf6c56019a7"]
 pub struct TileSet {
     pub tiles: Vec<String>,
-}
-
-impl Default for TileSet {
-    fn default() -> Self {
-        Self { tiles: vec![] }
-    }
 }
 
 impl TileSet {
